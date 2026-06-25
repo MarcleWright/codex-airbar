@@ -2,6 +2,20 @@
 
 ## Recent
 
+### 2026-06-25 Persistent Project Density Controls
+
+Status: Done
+
+Summary:
+
+- Persisted per-project collapse modes in local storage.
+- Removed the text search control and project-header session count display.
+- Removed visible button borders from the project/action controls while preserving active state fill.
+
+Primary task links:
+
+- `ai/tasks/2026-06-25_05_persistent-project-density-controls.md`
+
 ### 2026-06-25 Project Header Explorer And Collapse Modes
 
 Status: Done

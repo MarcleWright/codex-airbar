@@ -155,6 +155,41 @@ ipcMain.handle("codex:openProject", async (_event, workspacePath) => {
   });
 });
 
+ipcMain.handle("codex:resumeSession", async (_event, sessionId) => {
+  if (typeof sessionId !== "string" || sessionId.trim() === "") {
+    return {
+      ok: false,
+      error: "This session does not have a valid session id to resume."
+    };
+  }
+
+  return new Promise((resolve) => {
+    const resumeProcess =
+      process.platform === "win32"
+        ? spawn("cmd.exe", ["/c", "start", "Codex Session", "cmd.exe", "/k", "codex", "resume", sessionId], {
+            detached: true,
+            stdio: "ignore"
+          })
+        : spawn("codex", ["resume", sessionId], {
+            detached: true,
+            stdio: "inherit"
+          });
+
+    resumeProcess.once("error", (error) => {
+      log(`Failed to resume Codex session: ${sessionId}`, error);
+      resolve({
+        ok: false,
+        error: error.message || String(error)
+      });
+    });
+
+    resumeProcess.once("spawn", () => {
+      resumeProcess.unref();
+      resolve({ ok: true });
+    });
+  });
+});
+
 ipcMain.handle("app:openProjectFolder", async (_event, workspacePath) => {
   if (typeof workspacePath !== "string" || workspacePath.trim() === "" || workspacePath === "Projectless") {
     return {

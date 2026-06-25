@@ -1,14 +1,14 @@
-import { CheckCircle2, ChevronDown, ChevronRight, Circle, ExternalLink, EyeOff, FileText, FolderOpen, Minus, Moon, Pin, RefreshCw, Search, Sun, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Circle, ExternalLink, EyeOff, FileText, FolderOpen, Minus, Moon, Pin, RefreshCw, Sun, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "./theme-provider";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardHeader } from "./components/ui/card";
-import { Input } from "./components/ui/input";
 import { Select } from "./components/ui/select";
 import { cn } from "./lib/utils";
 
 const POLL_MS = 5000;
+const PROJECT_COLLAPSE_STORAGE_KEY = "codex-airbar-project-collapse";
 
 const statusLabels: Record<AirbarStatus, string> = {
   working: "Working",
@@ -29,10 +29,17 @@ type ProjectCollapseMode = "expanded" | "hide-idle" | "collapsed";
 export function App() {
   const [snapshot, setSnapshot] = useState<AirbarSnapshot | null>(null);
   const previousStatusesRef = useRef<Map<string, AirbarStatus>>(new Map());
-  const [filterText, setFilterText] = useState("");
   const [statusFilter, setStatusFilter] = useState<AirbarStatus | "all">("all");
   const [actionError, setActionError] = useState<string | null>(null);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
+  const [projectCollapseModes, setProjectCollapseModes] = useState<Record<string, ProjectCollapseMode>>(() => {
+    try {
+      const saved = window.localStorage.getItem(PROJECT_COLLAPSE_STORAGE_KEY);
+      return saved ? (JSON.parse(saved) as Record<string, ProjectCollapseMode>) : {};
+    } catch {
+      return {};
+    }
+  });
   const { theme, setTheme } = useTheme();
 
   const counts = useMemo(() => {
@@ -46,20 +53,13 @@ export function App() {
   }, [snapshot]);
 
   const filteredProjects = useMemo(() => {
-    const needle = filterText.trim().toLowerCase();
     return (snapshot?.projects || [])
-      .map((project) => {
-        const sessions = project.sessions.filter((session) => {
-          if (statusFilter !== "all" && session.status !== statusFilter) return false;
-          if (!needle) return true;
-          return [project.name, project.workspace, session.title, session.id, session.lastMessage].some((value) =>
-            String(value || "").toLowerCase().includes(needle)
-          );
-        });
-        return { ...project, sessions };
-      })
+      .map((project) => ({
+        ...project,
+        sessions: project.sessions.filter((session) => statusFilter === "all" || session.status === statusFilter)
+      }))
       .filter((project) => project.sessions.length > 0);
-  }, [filterText, snapshot?.projects, statusFilter]);
+  }, [snapshot?.projects, statusFilter]);
 
   async function poll() {
     try {
@@ -100,6 +100,10 @@ export function App() {
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    window.localStorage.setItem(PROJECT_COLLAPSE_STORAGE_KEY, JSON.stringify(projectCollapseModes));
+  }, [projectCollapseModes]);
+
   async function handleToggleAlwaysOnTop() {
     const next = await window.airbar.setAlwaysOnTop(!alwaysOnTop);
     setAlwaysOnTop(next);
@@ -124,7 +128,7 @@ export function App() {
             variant={alwaysOnTop ? "secondary" : "ghost"}
             size="icon"
             title={alwaysOnTop ? "Disable always on top" : "Enable always on top"}
-            className={alwaysOnTop ? "border border-border bg-secondary/90" : undefined}
+            className={alwaysOnTop ? "bg-secondary/90" : undefined}
             onClick={handleToggleAlwaysOnTop}
           >
             <Pin className="h-4 w-4" />
@@ -159,13 +163,9 @@ export function App() {
           ))}
         </section>
 
-        <section className="mb-3 grid grid-cols-[minmax(0,1fr)_112px] gap-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-8" type="search" placeholder="Filter projects or sessions" value={filterText} onChange={(event) => setFilterText(event.target.value)} />
-          </div>
+        <section className="mb-3">
           <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as AirbarStatus | "all")}>
-            <option value="all">All</option>
+            <option value="all">All statuses</option>
             <option value="working">Working</option>
             <option value="done">Done</option>
             <option value="recent">Recent</option>
@@ -178,7 +178,18 @@ export function App() {
 
         <section className="grid gap-2.5">
           {filteredProjects.map((project) => (
-            <ProjectCard key={project.workspace} project={project} onOpenError={setActionError} />
+            <ProjectCard
+              key={project.workspace}
+              project={project}
+              onOpenError={setActionError}
+              collapseMode={projectCollapseModes[project.workspace] ?? "expanded"}
+              onChangeCollapseMode={(nextMode) =>
+                setProjectCollapseModes((current) => ({
+                  ...current,
+                  [project.workspace]: nextMode
+                }))
+              }
+            />
           ))}
         </section>
 
@@ -195,13 +206,15 @@ export function App() {
 
 function ProjectCard({
   project,
-  onOpenError
+  onOpenError,
+  collapseMode,
+  onChangeCollapseMode
 }: {
   project: AirbarProject;
   onOpenError: (message: string | null) => void;
+  collapseMode: ProjectCollapseMode;
+  onChangeCollapseMode: (nextMode: ProjectCollapseMode) => void;
 }) {
-  const [collapseMode, setCollapseMode] = useState<ProjectCollapseMode>("expanded");
-
   const visibleSessions = project.sessions.filter((session) => {
     if (collapseMode === "collapsed") return false;
     if (collapseMode === "hide-idle") return session.status !== "idle";
@@ -220,11 +233,15 @@ function ProjectCard({
   }
 
   function cycleCollapseMode() {
-    setCollapseMode((current) => {
-      if (current === "expanded") return "hide-idle";
-      if (current === "hide-idle") return "collapsed";
-      return "expanded";
-    });
+    if (collapseMode === "expanded") {
+      onChangeCollapseMode("hide-idle");
+      return;
+    }
+    if (collapseMode === "hide-idle") {
+      onChangeCollapseMode("collapsed");
+      return;
+    }
+    onChangeCollapseMode("expanded");
   }
 
   const collapseTitle =
@@ -233,8 +250,6 @@ function ProjectCard({
       : collapseMode === "hide-idle"
         ? "Collapse project"
         : "Expand project";
-
-  const visibleCountLabel = collapseMode === "collapsed" ? project.sessions.length : visibleSessions.length;
 
   return (
     <Card className="overflow-hidden">
@@ -257,23 +272,22 @@ function ProjectCard({
           <Button
             variant={collapseMode === "hide-idle" ? "secondary" : "ghost"}
             size="icon"
-            className={cn("h-7 w-7 shrink-0", collapseMode === "hide-idle" ? "border border-border bg-secondary/90" : undefined)}
+            className={cn("h-7 w-7 shrink-0", collapseMode === "hide-idle" ? "bg-secondary/90" : undefined)}
             title={collapseMode === "hide-idle" ? "Show idle sessions" : "Hide idle sessions"}
-            onClick={() => setCollapseMode((current) => (current === "hide-idle" ? "expanded" : "hide-idle"))}
+            onClick={() => onChangeCollapseMode(collapseMode === "hide-idle" ? "expanded" : "hide-idle")}
           >
             <EyeOff className="h-4 w-4" />
           </Button>
           <Button
             variant="secondary"
             size="sm"
-            className="h-7 min-w-[36px] shrink-0 border border-border bg-secondary/90 px-2.5 text-[11px] font-semibold shadow-sm hover:bg-secondary"
+            className="h-7 min-w-[36px] shrink-0 bg-secondary/90 px-2.5 text-[11px] font-semibold shadow-sm hover:bg-secondary"
             title={isProjectless ? "No project folder available" : "Open project folder in Explorer"}
             onClick={handleOpenProject}
             disabled={isProjectless}
           >
             <FolderOpen className="h-3.5 w-3.5" />
           </Button>
-          <span className="text-xs text-muted-foreground">{visibleCountLabel}</span>
         </div>
       </CardHeader>
       <CardContent>
@@ -299,7 +313,7 @@ function SessionRow({
   const message = session.lastMessage || command || session.lastType || "";
   const [actionError, setActionError] = useState<string | null>(null);
 
-  async function handleOpenProject() {
+  async function handleSessionAction() {
     setActionError(null);
     const result = await window.airbar.openProject(session.workspace);
     if (!result.ok) {
@@ -321,9 +335,9 @@ function SessionRow({
           <Button
             variant="secondary"
             size="sm"
-            className="h-7 min-w-[72px] shrink-0 border border-border bg-secondary/90 px-2.5 text-[11px] font-semibold shadow-sm hover:bg-secondary"
+            className="h-7 min-w-[72px] shrink-0 bg-secondary/90 px-2.5 text-[11px] font-semibold shadow-sm hover:bg-secondary"
             title={session.workspace === "Projectless" ? "No project workspace available" : "Open project in Codex"}
-            onClick={handleOpenProject}
+            onClick={handleSessionAction}
             disabled={session.workspace === "Projectless"}
           >
             <ExternalLink className="h-3.5 w-3.5" />

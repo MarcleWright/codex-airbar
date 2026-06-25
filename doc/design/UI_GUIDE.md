@@ -8,7 +8,7 @@ Codex Airbar currently has one floating monitor window.
 
 - Title bar: app name, status summary, refresh/log/minimize/close controls.
 - Status strip: counts for `working`, `done`, `recent`, and `idle`.
-- Toolbar: text filter and status filter.
+- Toolbar: status filter.
 - Project list: project cards grouped by workspace.
 - Project header: title, collapse controls, Explorer button, and visible session count.
 - Session rows: status dot, title, badge, updated time, id prefix, last event type, short message, and a Codex `Open` action.
@@ -25,7 +25,9 @@ Codex Airbar currently has one floating monitor window.
 - Project cards support two compacting modes:
 - `hide-idle`: hide idle sessions but keep active and recent ones visible.
 - `collapsed`: collapse the whole project and leave only the header row visible.
+- Project compacting modes persist in `localStorage`.
 - Project headers expose a folder button that opens the project workspace in Explorer.
+- Header and row icon buttons avoid visible border chrome unless a state needs emphasis.
 
 ## Important UI States
 

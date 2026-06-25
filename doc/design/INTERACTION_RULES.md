@@ -21,6 +21,8 @@ The MVP does not create or edit Codex sessions.
 - Each project supports an idle-only compact mode that hides only sessions with `idle` status.
 - Each project supports a full collapse mode that hides all session rows and leaves only the project header visible.
 - Full collapse and idle-only compacting are per-project UI states and do not change the underlying snapshot data.
+- Project collapse state persists locally so repeated monitoring sessions keep the user's preferred density.
+- Project headers do not display the workspace path or a session-count suffix.
 
 ## Delete / Destructive Action Rules
 
