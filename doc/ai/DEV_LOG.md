@@ -2,6 +2,20 @@
 
 ## Recent
 
+### 2026-06-25 Switchable Session Open Actions
+
+Status: Done
+
+Summary:
+
+- Converted the session action into a switchable action set.
+- Kept `openWorkspace` as the default behavior.
+- Added `resumeSession` as a second action that launches Codex resume in an interactive terminal.
+
+Primary task links:
+
+- `ai/tasks/2026-06-25_06_switchable-session-open-actions.md`
+
 ### 2026-06-25 Persistent Project Density Controls
 
 Status: Done

@@ -13,6 +13,8 @@ The MVP does not create or edit Codex sessions.
 - The session-level `Open` action opens the related workspace in Codex Desktop.
 - The action remains project-level navigation, not session-level deep-link navigation.
 - Sessions without a known workspace disable the `Open` action.
+- The session action mode can be switched between opening the workspace and resuming the session.
+- `Resume session` opens a terminal-backed Codex resume flow because the CLI requires an interactive terminal.
 - The project-header folder action opens the workspace path in Explorer.
 - Projects without a known workspace disable the folder action.
 

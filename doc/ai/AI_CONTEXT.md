@@ -4,7 +4,7 @@
 
 - Keep Codex Airbar as a lightweight local Electron floating monitor.
 - Improve status accuracy and user ergonomics before adding direct Codex control.
-- Keep navigation scoped to opening the related project in Codex Desktop unless a reliable session deep link is discovered.
+- Keep direct session deep-link navigation out of scope unless a reliable Codex Desktop entry point is discovered.
 - Preserve read-only access to `%USERPROFILE%\.codex` unless the user explicitly asks for write/control features.
 
 ## Current Constraints
@@ -19,7 +19,9 @@
 - `src/status-reader.js` is the single owner for Codex local state parsing and status inference.
 - Main process owns filesystem access and notifications; renderer owns polling and presentation.
 - Theme switching is centralized in `src/renderer/src/theme-provider.tsx` and CSS variables in `src/renderer/src/styles.css`.
-- Session `Open` uses `codex app <workspace>` and is intentionally project-scoped rather than session-resume behavior.
+- Session actions are registry-based. The current options are `openWorkspace` and `resumeSession`.
+- `openWorkspace` remains the default action and uses `codex app <workspace>`.
+- `resumeSession` launches `codex resume <sessionId>` in an interactive terminal window.
 - `start-codex-airbar.bat` is the current user-facing launcher.
 
 ## Suggested Read Order
