@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronDown, ChevronRight, Circle, ExternalLink, EyeOff, FileText, FolderOpen, Minus, Moon, Pin, RefreshCw, Sun, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Circle, ExternalLink, Eye, EyeOff, FileText, FolderOpen, Minus, Moon, Pin, RefreshCw, Sun, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "./theme-provider";
 import { Badge } from "./components/ui/badge";
@@ -128,7 +128,6 @@ export function App() {
             variant={alwaysOnTop ? "secondary" : "ghost"}
             size="icon"
             title={alwaysOnTop ? "Disable always on top" : "Enable always on top"}
-            className={alwaysOnTop ? "bg-secondary/90" : undefined}
             onClick={handleToggleAlwaysOnTop}
           >
             <Pin className="h-4 w-4" />
@@ -258,7 +257,7 @@ function ProjectCard({
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-7 w-7 shrink-0", collapseMode === "collapsed" ? "bg-secondary/70" : undefined)}
+            className="h-7 w-7 shrink-0"
             title={collapseTitle}
             onClick={cycleCollapseMode}
           >
@@ -272,16 +271,16 @@ function ProjectCard({
           <Button
             variant={collapseMode === "hide-idle" ? "secondary" : "ghost"}
             size="icon"
-            className={cn("h-7 w-7 shrink-0", collapseMode === "hide-idle" ? "bg-secondary/90" : undefined)}
+            className="h-7 w-7 shrink-0"
             title={collapseMode === "hide-idle" ? "Show idle sessions" : "Hide idle sessions"}
             onClick={() => onChangeCollapseMode(collapseMode === "hide-idle" ? "expanded" : "hide-idle")}
           >
-            <EyeOff className="h-4 w-4" />
+            {collapseMode === "hide-idle" ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
           </Button>
           <Button
             variant="secondary"
             size="sm"
-            className="h-7 min-w-[36px] shrink-0 bg-secondary/90 px-2.5 text-[11px] font-semibold shadow-sm hover:bg-secondary"
+            className="h-7 min-w-[36px] shrink-0 px-2.5 text-[11px] font-semibold"
             title={isProjectless ? "No project folder available" : "Open project folder in Explorer"}
             onClick={handleOpenProject}
             disabled={isProjectless}
@@ -335,7 +334,7 @@ function SessionRow({
           <Button
             variant="secondary"
             size="sm"
-            className="h-7 min-w-[72px] shrink-0 bg-secondary/90 px-2.5 text-[11px] font-semibold shadow-sm hover:bg-secondary"
+            className="h-7 min-w-[72px] shrink-0 px-2.5 text-[11px] font-semibold"
             title={session.workspace === "Projectless" ? "No project workspace available" : "Open project in Codex"}
             onClick={handleSessionAction}
             disabled={session.workspace === "Projectless"}

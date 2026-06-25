@@ -24,7 +24,7 @@ Summary:
 
 - Persisted per-project collapse modes in local storage.
 - Removed the text search control and project-header session count display.
-- Removed visible button borders from the project/action controls while preserving active state fill.
+- Removed persistent button fill/border chrome and changed the project visibility control to switch icons.
 
 Primary task links:
 

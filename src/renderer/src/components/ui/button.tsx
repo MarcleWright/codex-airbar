@@ -10,10 +10,10 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const variants: Record<ButtonVariant, string> = {
-  default: "bg-primary text-primary-foreground hover:bg-primary/90",
-  secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-  ghost: "hover:bg-accent hover:text-accent-foreground",
-  destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+  default: "text-foreground active:bg-primary/15",
+  secondary: "text-secondary-foreground active:bg-secondary",
+  ghost: "text-foreground active:bg-accent active:text-accent-foreground",
+  destructive: "text-destructive active:bg-destructive/15"
 };
 
 const sizes: Record<ButtonSize, string> = {

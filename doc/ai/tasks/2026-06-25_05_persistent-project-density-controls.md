@@ -22,6 +22,8 @@ Make the Airbar project list behave more like a persistent monitoring surface by
 - Remove the search input from the toolbar.
 - Remove the project-header session count display.
 - Remove visible button borders from active and secondary controls.
+- Switch project visibility control between `EyeOff` and `Eye` icons.
+- Remove persistent button fill colors so buttons only show color during click feedback.
 - Preserve session-row `Open` as Codex navigation and project-header folder as Explorer navigation.
 
 ## Non-goals
@@ -43,6 +45,8 @@ Make the Airbar project list behave more like a persistent monitoring surface by
 - Search is no longer shown.
 - Project headers do not show a session count after the title/actions.
 - Buttons do not show explicit border outlines.
+- Visibility state is represented by icon switching, not only color switching.
+- Buttons do not show persistent internal color fills.
 - Existing Codex `Open` and Explorer folder actions keep their separate meanings.
 
 ## Execution Report
@@ -57,6 +61,8 @@ Make the Airbar project list behave more like a persistent monitoring surface by
 - Removed search state, search icon import, input import, and search filtering.
 - Removed project-header count rendering.
 - Removed explicit border classes from the pin, hide-idle, folder, and session action buttons.
+- Updated button primitives so normal button states are transparent and active press states provide the color feedback.
+- Changed the hide-idle control to switch between `EyeOff` and `Eye` icons.
 - Kept session-row action behavior unchanged so open/resume work can remain owned by its separate task path.
 
 ### Validation
@@ -86,6 +92,7 @@ None.
 
 - Search was removed from the monitor toolbar.
 - Project headers no longer show session counts.
+- Button visuals now rely on icon state and press feedback rather than persistent fills.
 
 ### Avoid
 
