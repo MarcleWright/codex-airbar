@@ -4,68 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Codex Airbar</title>
-    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="app">
-      <header class="titlebar">
-        <div class="drag-region">
-          <div class="brand">
-            <span class="brand-mark"></span>
-            <div>
-              <h1>Codex Airbar</h1>
-              <p id="summary">Reading local sessions...</p>
-            </div>
-          </div>
-        </div>
-        <div class="window-actions">
-          <button id="refreshButton" class="icon-button" title="Refresh">R</button>
-          <button id="logButton" class="icon-button" title="Open logs">L</button>
-          <button id="minimizeButton" class="icon-button" title="Minimize">-</button>
-          <button id="closeButton" class="icon-button danger" title="Close">x</button>
-        </div>
-      </header>
-
-      <main>
-        <section class="status-strip" aria-label="Status counts">
-          <div class="metric working">
-            <span id="workingCount">0</span>
-            <label>Working</label>
-          </div>
-          <div class="metric done">
-            <span id="doneCount">0</span>
-            <label>Done</label>
-          </div>
-          <div class="metric recent">
-            <span id="recentCount">0</span>
-            <label>Recent</label>
-          </div>
-          <div class="metric idle">
-            <span id="idleCount">0</span>
-            <label>Idle</label>
-          </div>
-        </section>
-
-        <section class="toolbar">
-          <input id="filterInput" type="search" placeholder="Filter projects or sessions" />
-          <select id="statusFilter">
-            <option value="all">All</option>
-            <option value="working">Working</option>
-            <option value="done">Done</option>
-            <option value="recent">Recent</option>
-            <option value="idle">Idle</option>
-          </select>
-        </section>
-
-        <section id="errorBox" class="error-box hidden"></section>
-        <section id="projectList" class="project-list"></section>
-        <section id="emptyState" class="empty-state hidden">
-          <h2>No Codex sessions found</h2>
-          <p>Airbar reads from your local .codex folder in read-only mode.</p>
-        </section>
-      </main>
-    </div>
-
-    <script src="./renderer.js"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

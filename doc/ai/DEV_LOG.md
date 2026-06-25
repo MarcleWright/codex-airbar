@@ -2,6 +2,21 @@
 
 ## Recent
 
+### 2026-06-25 React Theme Foundation
+
+Status: Done
+
+Summary:
+
+- Migrated the renderer from static HTML/CSS/JS to Vite + React.
+- Added Tailwind and shadcn-style local UI primitives.
+- Added CSS variable light/dark theme tokens and a title-bar theme toggle.
+- Preserved existing Codex status reader, Electron IPC, notifications, and launcher behavior.
+
+Primary task links:
+
+- `ai/tasks/2026-06-25_02_react-shadcn-theme-foundation.md`
+
 ### 2026-06-25 Codex Airbar MVP Bootstrap
 
 Status: Done

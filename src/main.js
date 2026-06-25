@@ -5,6 +5,7 @@ const os = require("node:os");
 const { readCodexSnapshot } = require("./status-reader");
 
 const shouldOpenDevTools = process.env.CODEX_AIRBAR_DEVTOOLS === "1";
+const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 const logPath = path.join(app.getPath("userData"), "codex-airbar.log");
 let mainWindow = null;
 
@@ -33,7 +34,7 @@ function createWindow() {
     alwaysOnTop: true,
     skipTaskbar: false,
     resizable: true,
-    backgroundColor: "#101317",
+    backgroundColor: "#0f1115",
     title: "Codex Airbar",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -43,7 +44,11 @@ function createWindow() {
   });
 
   mainWindow.setAlwaysOnTop(true, "floating");
-  mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+  if (devServerUrl) {
+    mainWindow.loadURL(devServerUrl);
+  } else {
+    mainWindow.loadFile(path.join(__dirname, "..", "dist", "renderer", "index.html"));
+  }
 
   mainWindow.webContents.on("did-fail-load", (_event, code, description) => {
     log(`Renderer failed to load: ${code} ${description}`);

@@ -24,12 +24,19 @@ Dependency audit for runtime dependencies:
 npm audit --omit=dev
 ```
 
+Renderer build:
+
+```powershell
+npm run build:renderer
+```
+
 ## Manual Verification
 
 - Run `npm start`.
 - Confirm the floating window opens and stays on top.
 - Confirm projects and sessions appear.
 - Try text filtering and status filtering.
+- Toggle light/dark theme and confirm the UI updates without layout shifts.
 - Confirm the log button opens the app log.
 - Confirm `start-codex-airbar.bat` starts the app from Explorer.
 
@@ -39,5 +46,6 @@ Before a packaged release exists, release validation means:
 
 - Fresh `npm install` works.
 - `npm run check` works.
+- `npm run build:renderer` works.
 - `npm start` works.
 - `.bat` launcher works.

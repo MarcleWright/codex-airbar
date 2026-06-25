@@ -9,7 +9,7 @@
 ## Current Constraints
 
 - The project is a new MVP, not yet packaged.
-- Renderer uses static HTML/CSS/JS with no build pipeline.
+- Renderer uses Vite + React + Tailwind with shadcn-style local UI primitives.
 - Codex status is inferred from local state files and process-manager records.
 - Documentation files must be UTF-8.
 
@@ -17,6 +17,7 @@
 
 - `src/status-reader.js` is the single owner for Codex local state parsing and status inference.
 - Main process owns filesystem access and notifications; renderer owns polling and presentation.
+- Theme switching is centralized in `src/renderer/src/theme-provider.tsx` and CSS variables in `src/renderer/src/styles.css`.
 - `start-codex-airbar.bat` is the current user-facing launcher.
 
 ## Suggested Read Order

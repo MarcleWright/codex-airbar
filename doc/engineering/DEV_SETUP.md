@@ -18,6 +18,8 @@ npm install
 npm start
 ```
 
+`npm start` builds the Vite renderer and then launches Electron.
+
 Alternative Windows launcher:
 
 ```powershell
@@ -25,6 +27,18 @@ Alternative Windows launcher:
 ```
 
 The launcher checks whether npm is available and whether Electron is installed. If Electron is missing, it runs `npm install`.
+
+For renderer-only development:
+
+```powershell
+npm run dev
+```
+
+For Electron pointing at the Vite dev server, run the Vite server first and then:
+
+```powershell
+npm run dev:app
+```
 
 ## Common Troubleshooting
 
