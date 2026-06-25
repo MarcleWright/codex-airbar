@@ -10,6 +10,7 @@ const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 const logPath = path.join(app.getPath("userData"), "codex-airbar.log");
 const appIconPath = path.join(__dirname, "..", "assets", process.platform === "win32" ? "icon.ico" : "icon.png");
 let mainWindow = null;
+let isPinnedToTop = true;
 
 function log(message, error) {
   const detail = error ? `\n${error.stack || error.message || String(error)}` : "";
@@ -33,7 +34,7 @@ function createWindow() {
     minHeight: 420,
     frame: false,
     transparent: false,
-    alwaysOnTop: true,
+    alwaysOnTop: isPinnedToTop,
     skipTaskbar: false,
     resizable: true,
     backgroundColor: "#0f1115",
@@ -46,7 +47,7 @@ function createWindow() {
     }
   });
 
-  mainWindow.setAlwaysOnTop(true, "floating");
+  mainWindow.setAlwaysOnTop(isPinnedToTop, "floating");
   if (devServerUrl) {
     mainWindow.loadURL(devServerUrl);
   } else {
@@ -101,6 +102,19 @@ ipcMain.handle("codex:getSnapshot", async () => {
 
 ipcMain.handle("app:minimize", () => {
   mainWindow?.minimize();
+});
+
+ipcMain.handle("app:getAlwaysOnTop", () => {
+  return mainWindow?.isAlwaysOnTop() ?? isPinnedToTop;
+});
+
+ipcMain.handle("app:setAlwaysOnTop", (_event, nextValue) => {
+  const nextPinned = Boolean(nextValue);
+  isPinnedToTop = nextPinned;
+  if (mainWindow) {
+    mainWindow.setAlwaysOnTop(nextPinned, "floating");
+  }
+  return isPinnedToTop;
 });
 
 ipcMain.handle("app:close", () => {

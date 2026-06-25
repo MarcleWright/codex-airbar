@@ -114,6 +114,7 @@ function summarizeLastEvents(filePath) {
     lastType: last?.type || last?.payload?.type || "unknown",
     lastPayloadType: last?.payload?.type || null,
     lastMessage: extractShortMessage(lastAgentMessage),
+    lastCwd: extractLastCwd(events),
     hasFunctionCall,
     hasFunctionOutput
   };
@@ -133,6 +134,16 @@ function extractShortMessage(event) {
 
 function trimText(text) {
   return text.replace(/\s+/g, " ").slice(0, 160);
+}
+
+function extractLastCwd(events) {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const payload = events[index]?.payload;
+    if (typeof payload?.cwd === "string" && payload.cwd.trim() !== "") {
+      return payload.cwd;
+    }
+  }
+  return "";
 }
 
 function readProcessManager() {
@@ -161,7 +172,7 @@ function readGlobalState() {
   return safeReadJson(path.join(CODEX_HOME, ".codex-global-state.json"), {});
 }
 
-function workspaceForThread(threadId, globalState, processInfo) {
+function workspaceForThread(threadId, globalState, processInfo, eventSummary) {
   const rootHints = globalState?.["thread-workspace-root-hints"] || {};
   if (rootHints[threadId]) return rootHints[threadId];
 
@@ -171,6 +182,8 @@ function workspaceForThread(threadId, globalState, processInfo) {
 
   const cwd = processInfo?.recentCommands?.find((row) => row.cwd)?.cwd;
   if (cwd) return cwd;
+
+  if (eventSummary?.lastCwd) return eventSummary.lastCwd;
 
   return "Projectless";
 }
@@ -206,9 +219,9 @@ function readCodexSnapshot() {
     const threadId = parseThreadIdFromFile(file.path);
     const index = sessionIndex.get(threadId) || {};
     const processInfo = processes.get(threadId) || null;
-    const workspace = workspaceForThread(threadId, globalState, processInfo);
-    const projectName = workspace === "Projectless" ? "Projectless" : path.basename(workspace);
     const eventSummary = summarizeLastEvents(file.path);
+    const workspace = workspaceForThread(threadId, globalState, processInfo, eventSummary);
+    const projectName = workspace === "Projectless" ? "Projectless" : path.basename(workspace);
     const status = statusForSession(file, eventSummary, processInfo);
     const session = {
       id: threadId,

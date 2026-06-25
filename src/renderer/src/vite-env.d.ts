@@ -40,6 +40,8 @@ interface Window {
     getSnapshot: () => Promise<AirbarSnapshot>;
     openProject: (workspacePath: string) => Promise<{ ok: boolean; error?: string }>;
     minimize: () => Promise<void>;
+    getAlwaysOnTop: () => Promise<boolean>;
+    setAlwaysOnTop: (value: boolean) => Promise<boolean>;
     close: () => Promise<void>;
     openLogs: () => Promise<void>;
     notify: (payload: { title: string; body: string }) => Promise<boolean>;

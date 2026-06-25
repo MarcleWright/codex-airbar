@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, ExternalLink, FileText, Minus, Moon, RefreshCw, Search, Sun, X } from "lucide-react";
+import { CheckCircle2, Circle, ExternalLink, FileText, Minus, Moon, Pin, RefreshCw, Search, Sun, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "./theme-provider";
 import { Badge } from "./components/ui/badge";
@@ -30,6 +30,7 @@ export function App() {
   const [filterText, setFilterText] = useState("");
   const [statusFilter, setStatusFilter] = useState<AirbarStatus | "all">("all");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const { theme, setTheme } = useTheme();
 
   const counts = useMemo(() => {
@@ -91,10 +92,16 @@ export function App() {
   }
 
   useEffect(() => {
+    window.airbar.getAlwaysOnTop().then(setAlwaysOnTop).catch(() => null);
     poll();
     const timer = window.setInterval(poll, POLL_MS);
     return () => window.clearInterval(timer);
   }, []);
+
+  async function handleToggleAlwaysOnTop() {
+    const next = await window.airbar.setAlwaysOnTop(!alwaysOnTop);
+    setAlwaysOnTop(next);
+  }
 
   const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
 
@@ -111,6 +118,15 @@ export function App() {
           </div>
         </div>
         <div className="no-drag flex items-center gap-1.5 pr-2">
+          <Button
+            variant={alwaysOnTop ? "secondary" : "ghost"}
+            size="icon"
+            title={alwaysOnTop ? "Disable always on top" : "Enable always on top"}
+            className={alwaysOnTop ? "border border-border bg-secondary/90" : undefined}
+            onClick={handleToggleAlwaysOnTop}
+          >
+            <Pin className="h-4 w-4" />
+          </Button>
           <Button variant="ghost" size="icon" title="Toggle theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
@@ -232,8 +248,9 @@ function SessionRow({
             <Badge>{session.status}</Badge>
           </div>
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
+            className="h-7 min-w-[72px] shrink-0 border border-border bg-secondary/90 px-2.5 text-[11px] font-semibold shadow-sm hover:bg-secondary"
             title={session.workspace === "Projectless" ? "No project workspace available" : "Open project in Codex"}
             onClick={handleOpenProject}
             disabled={session.workspace === "Projectless"}
