@@ -2,11 +2,13 @@ const { app, BrowserWindow, ipcMain, Notification, screen, shell } = require("el
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
+const { spawn } = require("node:child_process");
 const { readCodexSnapshot } = require("./status-reader");
 
 const shouldOpenDevTools = process.env.CODEX_AIRBAR_DEVTOOLS === "1";
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 const logPath = path.join(app.getPath("userData"), "codex-airbar.log");
+const appIconPath = path.join(__dirname, "..", "assets", process.platform === "win32" ? "icon.ico" : "icon.png");
 let mainWindow = null;
 
 function log(message, error) {
@@ -36,6 +38,7 @@ function createWindow() {
     resizable: true,
     backgroundColor: "#0f1115",
     title: "Codex Airbar",
+    icon: appIconPath,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -106,6 +109,36 @@ ipcMain.handle("app:close", () => {
 
 ipcMain.handle("app:openLogs", () => {
   shell.openPath(logPath);
+});
+
+ipcMain.handle("codex:openProject", async (_event, workspacePath) => {
+  if (typeof workspacePath !== "string" || workspacePath.trim() === "" || workspacePath === "Projectless") {
+    return {
+      ok: false,
+      error: "This session does not have a project workspace to open."
+    };
+  }
+
+  return new Promise((resolve) => {
+    const codex = spawn("codex", ["app", workspacePath], {
+      detached: true,
+      stdio: "ignore",
+      shell: process.platform === "win32"
+    });
+
+    codex.once("error", (error) => {
+      log(`Failed to open Codex project: ${workspacePath}`, error);
+      resolve({
+        ok: false,
+        error: error.message || String(error)
+      });
+    });
+
+    codex.once("spawn", () => {
+      codex.unref();
+      resolve({ ok: true });
+    });
+  });
 });
 
 ipcMain.handle("app:notify", (_event, payload) => {

@@ -17,6 +17,7 @@ The user can leave multiple Codex sessions running and glance at one compact pan
 - Show recent sessions under each project.
 - Display status counts for `working`, `done`, `recent`, and `idle`.
 - Support text filtering and status filtering.
+- Allow opening the related project in Codex Desktop from a session row.
 - Notify when a session transitions from `working` to `done`.
 - Provide a double-click `.bat` launcher for Windows.
 

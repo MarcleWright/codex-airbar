@@ -38,6 +38,7 @@ interface AirbarSnapshot {
 interface Window {
   airbar: {
     getSnapshot: () => Promise<AirbarSnapshot>;
+    openProject: (workspacePath: string) => Promise<{ ok: boolean; error?: string }>;
     minimize: () => Promise<void>;
     close: () => Promise<void>;
     openLogs: () => Promise<void>;

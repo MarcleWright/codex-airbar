@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("airbar", {
   getSnapshot: () => ipcRenderer.invoke("codex:getSnapshot"),
+  openProject: (workspacePath) => ipcRenderer.invoke("codex:openProject", workspacePath),
   minimize: () => ipcRenderer.invoke("app:minimize"),
   close: () => ipcRenderer.invoke("app:close"),
   openLogs: () => ipcRenderer.invoke("app:openLogs"),

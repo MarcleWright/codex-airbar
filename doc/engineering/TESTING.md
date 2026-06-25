@@ -37,6 +37,7 @@ npm run build:renderer
 - Confirm projects and sessions appear.
 - Try text filtering and status filtering.
 - Toggle light/dark theme and confirm the UI updates without layout shifts.
+- Click a session `Open` button and confirm Codex Desktop opens the matching workspace.
 - Confirm the log button opens the app log.
 - Confirm `start-codex-airbar.bat` starts the app from Explorer.
 

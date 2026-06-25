@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, FileText, Minus, Moon, RefreshCw, Search, Sun, X } from "lucide-react";
+import { CheckCircle2, Circle, ExternalLink, FileText, Minus, Moon, RefreshCw, Search, Sun, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "./theme-provider";
 import { Badge } from "./components/ui/badge";
@@ -29,6 +29,7 @@ export function App() {
   const previousStatusesRef = useRef<Map<string, AirbarStatus>>(new Map());
   const [filterText, setFilterText] = useState("");
   const [statusFilter, setStatusFilter] = useState<AirbarStatus | "all">("all");
+  const [actionError, setActionError] = useState<string | null>(null);
   const { theme, setTheme } = useTheme();
 
   const counts = useMemo(() => {
@@ -155,10 +156,11 @@ export function App() {
         </section>
 
         {snapshot?.error ? <div className="mb-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">{snapshot.error}</div> : null}
+        {actionError ? <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">{actionError}</div> : null}
 
         <section className="grid gap-2.5">
           {filteredProjects.map((project) => (
-            <ProjectCard key={project.workspace} project={project} />
+            <ProjectCard key={project.workspace} project={project} onOpenError={setActionError} />
           ))}
         </section>
 
@@ -173,7 +175,13 @@ export function App() {
   );
 }
 
-function ProjectCard({ project }: { project: AirbarProject }) {
+function ProjectCard({
+  project,
+  onOpenError
+}: {
+  project: AirbarProject;
+  onOpenError: (message: string | null) => void;
+}) {
   return (
     <Card className="overflow-hidden">
       <CardHeader>
@@ -187,26 +195,52 @@ function ProjectCard({ project }: { project: AirbarProject }) {
       </CardHeader>
       <CardContent>
         {project.sessions.map((session) => (
-          <SessionRow key={`${session.id}-${session.file}`} session={session} />
+          <SessionRow key={`${session.id}-${session.file}`} session={session} onOpenError={onOpenError} />
         ))}
       </CardContent>
     </Card>
   );
 }
 
-function SessionRow({ session }: { session: AirbarSession }) {
+function SessionRow({
+  session,
+  onOpenError
+}: {
+  session: AirbarSession;
+  onOpenError: (message: string | null) => void;
+}) {
   const command = session.recentCommands?.[0]?.command;
   const message = session.lastMessage || command || session.lastType || "";
+
+  async function handleOpenProject() {
+    onOpenError(null);
+    const result = await window.airbar.openProject(session.workspace);
+    if (!result.ok) {
+      onOpenError(result.error || "Failed to open the project in Codex.");
+    }
+  }
 
   return (
     <div className="grid grid-cols-[12px_minmax(0,1fr)] gap-2.5 border-b border-border px-3 py-2.5 last:border-b-0">
       <span className={cn("mt-1.5 h-2 w-2 rounded-full", statusTone[session.status])} />
       <div className="min-w-0">
         <div className="flex min-w-0 items-center justify-between gap-2">
-          <strong className="truncate text-sm" title={session.title}>
-            {session.title}
-          </strong>
-          <Badge>{session.status}</Badge>
+          <div className="flex min-w-0 items-center gap-2">
+            <strong className="truncate text-sm" title={session.title}>
+              {session.title}
+            </strong>
+            <Badge>{session.status}</Badge>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            title={session.workspace === "Projectless" ? "No project workspace available" : "Open project in Codex"}
+            onClick={handleOpenProject}
+            disabled={session.workspace === "Projectless"}
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            Open
+          </Button>
         </div>
         <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
           {session.status === "done" ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}

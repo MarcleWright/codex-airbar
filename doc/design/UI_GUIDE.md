@@ -11,6 +11,7 @@ Codex Airbar currently has one floating monitor window.
 - Toolbar: text filter and status filter.
 - Project list: project cards grouped by workspace.
 - Session rows: status dot, title, badge, updated time, id prefix, last event type, and short message.
+- Session rows also expose an `Open` action that returns the user to the related Codex Desktop project.
 
 ## Key Visible Behaviors
 

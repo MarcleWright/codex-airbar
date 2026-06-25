@@ -8,6 +8,12 @@ The MVP has no row selection state. Session rows are informational.
 
 The MVP does not create or edit Codex sessions.
 
+## Navigation Behavior
+
+- The session-level `Open` action opens the related workspace in Codex Desktop.
+- The action is project-level navigation, not session-level deep-link navigation.
+- Sessions without a known workspace disable the `Open` action.
+
 ## Delete / Destructive Action Rules
 
 No destructive actions are exposed. The app must not delete, modify, or archive Codex data.

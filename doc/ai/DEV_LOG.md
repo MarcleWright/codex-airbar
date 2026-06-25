@@ -2,6 +2,20 @@
 
 ## Recent
 
+### 2026-06-25 Project Navigation From Session Rows
+
+Status: Done
+
+Summary:
+
+- Added session-level `Open` actions that send the user back to the related Codex Desktop project.
+- Kept navigation project-scoped instead of using `resume`, so Airbar stays a monitor rather than a control surface.
+- Added error handling for sessions without a known workspace.
+
+Primary task links:
+
+- `ai/tasks/2026-06-25_03_project-navigation-from-session-rows.md`
+
 ### 2026-06-25 React Theme Foundation
 
 Status: Done
