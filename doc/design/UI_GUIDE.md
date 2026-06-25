@@ -10,8 +10,8 @@ Codex Airbar currently has one floating monitor window.
 - Status strip: counts for `working`, `done`, `recent`, and `idle`.
 - Toolbar: text filter and status filter.
 - Project list: project cards grouped by workspace.
-- Session rows: status dot, title, badge, updated time, id prefix, last event type, and short message.
-- Session rows also expose an `Open` action that returns the user to the related Codex Desktop project.
+- Project header: title, collapse controls, Explorer button, and visible session count.
+- Session rows: status dot, title, badge, updated time, id prefix, last event type, short message, and a Codex `Open` action.
 
 ## Key Visible Behaviors
 
@@ -22,6 +22,10 @@ Codex Airbar currently has one floating monitor window.
 - Notifications are sent when a session changes from `working` to `done`.
 - The title bar includes a theme toggle for light/dark mode.
 - UI primitives follow a shadcn-style source-owned pattern and consume shared theme tokens.
+- Project cards support two compacting modes:
+- `hide-idle`: hide idle sessions but keep active and recent ones visible.
+- `collapsed`: collapse the whole project and leave only the header row visible.
+- Project headers expose a folder button that opens the project workspace in Explorer.
 
 ## Important UI States
 

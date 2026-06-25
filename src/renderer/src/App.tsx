@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, ExternalLink, FileText, Minus, Moon, Pin, RefreshCw, Search, Sun, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Circle, ExternalLink, EyeOff, FileText, FolderOpen, Minus, Moon, Pin, RefreshCw, Search, Sun, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "./theme-provider";
 import { Badge } from "./components/ui/badge";
@@ -23,6 +23,8 @@ const statusTone: Record<AirbarStatus, string> = {
   recent: "bg-amber-300",
   idle: "bg-muted-foreground"
 };
+
+type ProjectCollapseMode = "expanded" | "hide-idle" | "collapsed";
 
 export function App() {
   const [snapshot, setSnapshot] = useState<AirbarSnapshot | null>(null);
@@ -198,41 +200,110 @@ function ProjectCard({
   project: AirbarProject;
   onOpenError: (message: string | null) => void;
 }) {
+  const [collapseMode, setCollapseMode] = useState<ProjectCollapseMode>("expanded");
+
+  const visibleSessions = project.sessions.filter((session) => {
+    if (collapseMode === "collapsed") return false;
+    if (collapseMode === "hide-idle") return session.status !== "idle";
+    return true;
+  });
+
+  const hiddenIdleCount = project.sessions.filter((session) => session.status === "idle").length;
+  const isProjectless = project.workspace === "Projectless";
+
+  async function handleOpenProject() {
+    onOpenError(null);
+    const result = await window.airbar.openProjectFolder(project.workspace);
+    if (!result.ok) {
+      onOpenError(result.error || "Failed to open the project folder.");
+    }
+  }
+
+  function cycleCollapseMode() {
+    setCollapseMode((current) => {
+      if (current === "expanded") return "hide-idle";
+      if (current === "hide-idle") return "collapsed";
+      return "expanded";
+    });
+  }
+
+  const collapseTitle =
+    collapseMode === "expanded"
+      ? "Hide idle sessions"
+      : collapseMode === "hide-idle"
+        ? "Collapse project"
+        : "Expand project";
+
+  const visibleCountLabel = collapseMode === "collapsed" ? project.sessions.length : visibleSessions.length;
+
   return (
     <Card className="overflow-hidden">
       <CardHeader>
-        <div className="min-w-0">
-          <strong className="block truncate text-sm">{project.name}</strong>
-          <span className="block max-w-[280px] truncate text-[11px] text-muted-foreground" title={project.workspace}>
-            {project.workspace}
-          </span>
+        <div className="flex min-w-0 items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn("h-7 w-7 shrink-0", collapseMode === "collapsed" ? "bg-secondary/70" : undefined)}
+            title={collapseTitle}
+            onClick={cycleCollapseMode}
+          >
+            {collapseMode === "collapsed" ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+          <div className="min-w-0">
+            <strong className="block truncate text-sm">{project.name}</strong>
+          </div>
         </div>
-        <span className="text-xs text-muted-foreground">{project.sessions.length}</span>
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant={collapseMode === "hide-idle" ? "secondary" : "ghost"}
+            size="icon"
+            className={cn("h-7 w-7 shrink-0", collapseMode === "hide-idle" ? "border border-border bg-secondary/90" : undefined)}
+            title={collapseMode === "hide-idle" ? "Show idle sessions" : "Hide idle sessions"}
+            onClick={() => setCollapseMode((current) => (current === "hide-idle" ? "expanded" : "hide-idle"))}
+          >
+            <EyeOff className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-7 min-w-[36px] shrink-0 border border-border bg-secondary/90 px-2.5 text-[11px] font-semibold shadow-sm hover:bg-secondary"
+            title={isProjectless ? "No project folder available" : "Open project folder in Explorer"}
+            onClick={handleOpenProject}
+            disabled={isProjectless}
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+          </Button>
+          <span className="text-xs text-muted-foreground">{visibleCountLabel}</span>
+        </div>
       </CardHeader>
       <CardContent>
-        {project.sessions.map((session) => (
-          <SessionRow key={`${session.id}-${session.file}`} session={session} onOpenError={onOpenError} />
+        {collapseMode === "collapsed" ? null : visibleSessions.map((session) => (
+          <SessionRow key={`${session.id}-${session.file}`} session={session} />
         ))}
+        {collapseMode === "hide-idle" && hiddenIdleCount > 0 ? (
+          <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+            {hiddenIdleCount} idle session{hiddenIdleCount > 1 ? "s" : ""} hidden
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
 }
 
 function SessionRow({
-  session,
-  onOpenError
+  session
 }: {
   session: AirbarSession;
-  onOpenError: (message: string | null) => void;
 }) {
   const command = session.recentCommands?.[0]?.command;
   const message = session.lastMessage || command || session.lastType || "";
+  const [actionError, setActionError] = useState<string | null>(null);
 
   async function handleOpenProject() {
-    onOpenError(null);
+    setActionError(null);
     const result = await window.airbar.openProject(session.workspace);
     if (!result.ok) {
-      onOpenError(result.error || "Failed to open the project in Codex.");
+      setActionError(result.error || "Failed to open the project in Codex.");
     }
   }
 
@@ -266,6 +337,7 @@ function SessionRow({
           <span className="truncate">{session.lastType}</span>
         </div>
         {message ? <div className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{message}</div> : null}
+        {actionError ? <div className="mt-2 text-[11px] text-amber-300">{actionError}</div> : null}
       </div>
     </div>
   );

@@ -155,6 +155,26 @@ ipcMain.handle("codex:openProject", async (_event, workspacePath) => {
   });
 });
 
+ipcMain.handle("app:openProjectFolder", async (_event, workspacePath) => {
+  if (typeof workspacePath !== "string" || workspacePath.trim() === "" || workspacePath === "Projectless") {
+    return {
+      ok: false,
+      error: "This project does not have a workspace folder to open."
+    };
+  }
+
+  const result = await shell.openPath(workspacePath);
+  if (result) {
+    log(`Failed to open project folder: ${workspacePath}\n${result}`);
+    return {
+      ok: false,
+      error: result
+    };
+  }
+
+  return { ok: true };
+});
+
 ipcMain.handle("app:notify", (_event, payload) => {
   if (!Notification.isSupported()) return false;
   const notification = new Notification({

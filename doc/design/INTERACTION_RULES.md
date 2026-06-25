@@ -11,8 +11,16 @@ The MVP does not create or edit Codex sessions.
 ## Navigation Behavior
 
 - The session-level `Open` action opens the related workspace in Codex Desktop.
-- The action is project-level navigation, not session-level deep-link navigation.
+- The action remains project-level navigation, not session-level deep-link navigation.
 - Sessions without a known workspace disable the `Open` action.
+- The project-header folder action opens the workspace path in Explorer.
+- Projects without a known workspace disable the folder action.
+
+## Collapse Behavior
+
+- Each project supports an idle-only compact mode that hides only sessions with `idle` status.
+- Each project supports a full collapse mode that hides all session rows and leaves only the project header visible.
+- Full collapse and idle-only compacting are per-project UI states and do not change the underlying snapshot data.
 
 ## Delete / Destructive Action Rules
 

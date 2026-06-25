@@ -2,6 +2,20 @@
 
 ## Recent
 
+### 2026-06-25 Project Header Explorer And Collapse Modes
+
+Status: Done
+
+Summary:
+
+- Added a project-header folder button that opens the workspace in Explorer.
+- Preserved session-row `Open` as the Codex navigation action.
+- Added per-project `hide-idle` and full collapse modes for denser monitoring.
+
+Primary task links:
+
+- `ai/tasks/2026-06-25_04_project-header-explorer-and-collapse-modes.md`
+
 ### 2026-06-25 Project Navigation From Session Rows
 
 Status: Done
