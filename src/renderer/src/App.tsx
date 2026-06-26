@@ -201,9 +201,6 @@ export function App() {
           >
             {theme === "dark" ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Refresh" onClick={poll}>
-            <RefreshCw className="h-3.5 w-3.5" />
-          </Button>
           <Button
             variant="ghost"
             size="icon"
@@ -212,6 +209,9 @@ export function App() {
             onClick={handleSnapTopCenter}
           >
             <Magnet className={cn("h-3.5 w-3.5", topCenterSnapped ? "fill-current" : "")} />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Refresh" onClick={poll}>
+            <RefreshCw className="h-3.5 w-3.5" />
           </Button>
           <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Open logs" onClick={() => window.airbar.openLogs()}>
             <FileText className="h-3.5 w-3.5" />

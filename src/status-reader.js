@@ -184,6 +184,7 @@ function summarizeLastEvents(filePath) {
     lastCwd: extractLastCwd(events),
     hasFunctionCall,
     hasFunctionOutput,
+    hasLatestUserMessage: isUserMessageEvent(last),
     hasTaskComplete: tailEvents.some((event) => event?.payload?.type === "task_complete"),
     hasFinalAnswer: tailEvents.some((event) => event?.payload?.phase === "final_answer"),
     hasCommentary: tailEvents.some((event) => event?.payload?.phase === "commentary"),
@@ -197,6 +198,12 @@ function summarizeLastEvents(filePath) {
       return type === "function_call_output" || type === "custom_tool_call_output";
     })
   };
+}
+
+function isUserMessageEvent(event) {
+  if (!event) return false;
+  if (event?.payload?.type === "user_message") return true;
+  return event?.payload?.type === "message" && event?.payload?.role === "user";
 }
 
 function extractFullMessageText(event) {
@@ -409,6 +416,12 @@ function workspaceForThread(threadId, globalState, processInfo, eventSummary) {
 }
 
 function statusForSession(file, eventSummary, processInfo) {
+  const now = Date.now();
+  const ageMs = now - file.mtimeMs;
+  if (eventSummary?.hasLatestUserMessage) {
+    return ageMs < DONE_WINDOW_MS ? "working" : "idle";
+  }
+
   const markerStatus = eventSummary?.airbarMarker?.status;
   if (markerStatus === "working" || markerStatus === "done" || markerStatus === "idle") {
     return markerStatus;
@@ -417,8 +430,6 @@ function statusForSession(file, eventSummary, processInfo) {
     return "done";
   }
 
-  const now = Date.now();
-  const ageMs = now - file.mtimeMs;
   const beyondDoneWindow = ageMs >= DONE_WINDOW_MS;
   if (eventSummary?.hasTaskComplete) return ageMs < DONE_WINDOW_MS ? "done" : "idle";
   if (beyondDoneWindow && !processInfo?.hasRecentProcess) return "idle";
