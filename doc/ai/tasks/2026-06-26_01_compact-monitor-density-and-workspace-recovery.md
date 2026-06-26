@@ -72,6 +72,7 @@ Turn Airbar into a denser, calmer floating monitor while improving project attri
 
 - Tightened message-path inference after an initial pass created false projects such as `bin` and `AI`.
 - Removed the top summary color strip after it proved visually unnecessary for the compact monitor layout.
+- Verified that completed local sessions retain structured process signals such as `reasoning`, tool-call events, `final_answer`, and `task_complete`, and recorded them as the most promising future path for stronger status inference.
 
 ## Reviewer Notes
 
@@ -92,6 +93,7 @@ Turn Airbar into a denser, calmer floating monitor while improving project attri
 - Idle sessions default to hidden.
 - The monitor window is now a wider free-floating panel rather than a top-snapping strip.
 - Compact presentation now favors a single-line session summary with inline context.
+- User-facing status colors now read as blue = `working`, green = `done`, while the underlying status inference remains local and heuristic.
 
 ### Avoid
 
@@ -102,6 +104,7 @@ Turn Airbar into a denser, calmer floating monitor while improving project attri
 
 - Consider a future user-visible explanation or affordance for `Projectless` sessions if workspace inference remains incomplete.
 - Consider further normalizing nested repo paths such as `apps/web` when a subdirectory rather than repo root is the only available signal.
+- Use `task_complete`, `final_answer`, and recent tool-call sequences as a future status-inference upgrade path instead of relying only on file-recency heuristics.
 
 ## Final Result
 

@@ -43,3 +43,5 @@ Codex Airbar is a local Electron app that watches Codex session metadata and dis
 - Recover workspaces conservatively from multiple local signals: persisted hints, writable roots, process `cwd`, event `cwd`, explicit `-C/--cd` command arguments, and repo-root inference from message paths.
 - Keep project UI memory renderer-local and persist it by workspace key in `localStorage`.
 - Keep the monitor window as a wider frameless floating panel without automatic edge-docking behavior.
+- Current status inference is heuristic and tiered: `working` is driven by very recent process/file activity, `done` is driven by recent file activity plus observed tool output, `recent` is a fallback recent-write bucket, and `idle` covers older sessions.
+- Local completed sessions expose richer event-sequence signals than Airbar currently uses, including `reasoning`, tool-call start/output events, `final_answer`, and `task_complete`; these are the preferred next path for stronger status inference.

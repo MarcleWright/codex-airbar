@@ -12,6 +12,7 @@
 - Renderer uses Vite + React + Tailwind with shadcn-style local UI primitives.
 - Codex status is inferred from local state files and process-manager records.
 - Some sessions still fall back to `Projectless` when local Codex metadata does not expose a recoverable workspace path.
+- Completed local sessions retain richer event history than the current Airbar UI uses, including `reasoning`, tool-call, `turn_context`, `final_answer`, and `task_complete` signals.
 - Documentation files must be UTF-8.
 
 ## Current Important Decisions
@@ -24,6 +25,8 @@
 - Project UI memory is per-workspace and stores two independent booleans: `collapsed` and `hideIdle`.
 - Idle sessions are hidden by default until a project-specific user toggle says otherwise.
 - The window now opens as a wider floating panel without automatic top-edge snap behavior.
+- Status color semantics are user-facing only: blue means `working`, green means `done`, but both are still inferred from local recency and event/output signals rather than authoritative Codex state.
+- Future status improvements can use event-sequence signals from completed sessions without adding direct Codex control yet.
 - `start-codex-airbar.bat` is the current user-facing launcher.
 
 ## Suggested Read Order
