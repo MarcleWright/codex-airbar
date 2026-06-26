@@ -29,6 +29,7 @@
 - Stateful buttons should display the current state in the icon, not the state that clicking will switch to.
 - Status color semantics are user-facing only: violet means `working`, blue means `done`, but both are still inferred from local recency and event/output signals rather than authoritative Codex state.
 - Status lifecycle is now `working` / `done` / `idle`; `done` persists up to 18 hours unless the user clears it locally, and stale older sessions should not revive as `working` after restart without a current process signal.
+- A fresh user message after a completed turn is a `working` signal until later assistant activity appears; metadata events such as `session_meta` and `turn_context` do not cancel that pending state.
 - Future status improvements can use event-sequence signals from completed sessions without adding direct Codex control yet.
 - `start-codex-airbar.bat` is the current user-facing launcher.
 

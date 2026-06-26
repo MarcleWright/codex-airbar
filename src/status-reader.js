@@ -184,7 +184,7 @@ function summarizeLastEvents(filePath) {
     lastCwd: extractLastCwd(events),
     hasFunctionCall,
     hasFunctionOutput,
-    hasLatestUserMessage: isUserMessageEvent(last),
+    hasPendingUserMessage: hasPendingUserMessage(events),
     hasTaskComplete: tailEvents.some((event) => event?.payload?.type === "task_complete"),
     hasFinalAnswer: tailEvents.some((event) => event?.payload?.phase === "final_answer"),
     hasCommentary: tailEvents.some((event) => event?.payload?.phase === "commentary"),
@@ -204,6 +204,27 @@ function isUserMessageEvent(event) {
   if (!event) return false;
   if (event?.payload?.type === "user_message") return true;
   return event?.payload?.type === "message" && event?.payload?.role === "user";
+}
+
+function isAssistantActivityEvent(event) {
+  if (!event) return false;
+  if (event?.payload?.role === "assistant") return true;
+  const type = event?.payload?.type;
+  return (
+    type === "agent_message" ||
+    type === "reasoning" ||
+    type === "function_call" ||
+    type === "custom_tool_call" ||
+    type === "function_call_output" ||
+    type === "custom_tool_call_output" ||
+    type === "task_complete"
+  );
+}
+
+function hasPendingUserMessage(events) {
+  const lastUserIndex = events.findLastIndex(isUserMessageEvent);
+  if (lastUserIndex === -1) return false;
+  return !events.slice(lastUserIndex + 1).some(isAssistantActivityEvent);
 }
 
 function extractFullMessageText(event) {
@@ -418,7 +439,7 @@ function workspaceForThread(threadId, globalState, processInfo, eventSummary) {
 function statusForSession(file, eventSummary, processInfo) {
   const now = Date.now();
   const ageMs = now - file.mtimeMs;
-  if (eventSummary?.hasLatestUserMessage) {
+  if (eventSummary?.hasPendingUserMessage) {
     return ageMs < DONE_WINDOW_MS ? "working" : "idle";
   }
 

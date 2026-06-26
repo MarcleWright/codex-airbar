@@ -65,6 +65,7 @@ Turn Airbar into a denser, calmer floating monitor while improving project attri
 - Expanded workspace inference by reading session-file head metadata, top-level event `cwd`, `turn_context` workspace roots, parsing `-C/--cd` arguments, and inferring repo roots from message paths with a conservative `Codex_Projects/<repo>` fallback.
 - Removed the temporary auto-snap behavior and widened the default Electron window from 420px to 630px.
 - Simplified session lifecycle to `working` / `done` / `idle`, kept `done` visible for 18 hours, added user-clearable done memory, and prevented stale sessions older than that window from reviving as `working` after restart unless a fresh process signal exists.
+- Added pending-user-message detection so a resumed or recently messaged session moves to `working` before Codex emits reasoning, commentary, or tool-call events.
 - Added a magnet button with filled/outline state for explicit top-center positioning.
 
 ### Validation
@@ -100,6 +101,7 @@ Turn Airbar into a denser, calmer floating monitor while improving project attri
 - Compact presentation now favors a single-line session summary with inline context.
 - User-facing status colors now read as violet = `working`, blue = `done`, while the underlying status inference remains local and heuristic.
 - `recent` is no longer a first-class status bucket.
+- User messages after a completed turn take priority over old `task_complete` / `final_answer` signals until assistant activity appears.
 
 ### Avoid
 
