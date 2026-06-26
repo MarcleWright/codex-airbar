@@ -84,6 +84,20 @@ function snapWindowToTopCenter(targetWindow) {
   const [windowWidth, windowHeight] = targetWindow.getSize();
   const position = getTopCenterPosition(windowWidth, windowHeight);
   targetWindow.setPosition(position.x, position.y);
+  emitSnapTopCenterState(targetWindow);
+}
+
+function isTopCenterSnapped(targetWindow) {
+  if (!targetWindow || targetWindow.isDestroyed()) return false;
+  const [windowWidth, windowHeight] = targetWindow.getSize();
+  const [windowX, windowY] = targetWindow.getPosition();
+  const position = getTopCenterPosition(windowWidth, windowHeight);
+  return Math.abs(windowX - position.x) <= 2 && Math.abs(windowY - position.y) <= 2;
+}
+
+function emitSnapTopCenterState(targetWindow) {
+  if (!targetWindow || targetWindow.isDestroyed()) return;
+  targetWindow.webContents.send("app:snapTopCenterStateChanged", isTopCenterSnapped(targetWindow));
 }
 
 function isWindowsSnapBounds(bounds) {
@@ -166,9 +180,11 @@ function createWindow() {
   });
   mainWindow.on("move", () => {
     restoreFromWindowsSnap(mainWindow);
+    emitSnapTopCenterState(mainWindow);
   });
   mainWindow.on("resize", () => {
     restoreFromWindowsSnap(mainWindow);
+    emitSnapTopCenterState(mainWindow);
   });
 
   if (devServerUrl) {
@@ -233,6 +249,11 @@ ipcMain.handle("app:minimize", () => {
 
 ipcMain.handle("app:snapTopCenter", () => {
   snapWindowToTopCenter(mainWindow);
+  return isTopCenterSnapped(mainWindow);
+});
+
+ipcMain.handle("app:isTopCenterSnapped", () => {
+  return isTopCenterSnapped(mainWindow);
 });
 
 ipcMain.handle("app:getAlwaysOnTop", () => {

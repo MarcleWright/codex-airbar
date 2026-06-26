@@ -129,16 +129,35 @@ function readTailLines(filePath, maxBytes = 65536) {
   }
 }
 
-function summarizeLastEvents(filePath) {
-  const lines = readTailLines(filePath);
+function readHeadLines(filePath, maxBytes = 65536) {
+  const stat = safeStat(filePath);
+  if (!stat) return [];
+  const fd = fs.openSync(filePath, "r");
+  try {
+    const length = Math.min(maxBytes, stat.size);
+    const buffer = Buffer.alloc(length);
+    fs.readSync(fd, buffer, 0, length, 0);
+    return buffer.toString("utf8").split(/\r?\n/).filter(Boolean);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function parseEventLines(lines, limit) {
   const events = [];
-  for (const line of lines.slice(-40)) {
+  for (const line of lines.slice(0, limit)) {
     try {
       events.push(JSON.parse(line));
     } catch {
-      // Ignore partial writes.
+      // Ignore malformed partial lines while Codex is writing.
     }
   }
+  return events;
+}
+
+function summarizeLastEvents(filePath) {
+  const headEvents = parseEventLines(readHeadLines(filePath), 80);
+  const events = parseEventLines(readTailLines(filePath).slice(-40), 40);
 
   const last = events.at(-1) || null;
   const tailEvents = events.slice(-8);
@@ -161,6 +180,7 @@ function summarizeLastEvents(filePath) {
     lastPayloadType: last?.payload?.type || null,
     lastMessage: trimText(stripAirbarMarker(fullLastMessage)),
     airbarMarker: extractAirbarMarker(fullLastMessage),
+    metadataWorkspace: extractMetadataWorkspace(headEvents),
     lastCwd: extractLastCwd(events),
     hasFunctionCall,
     hasFunctionOutput,
@@ -296,6 +316,35 @@ function extractLastCwd(events) {
   return "";
 }
 
+function extractMetadataWorkspace(events) {
+  for (const event of events) {
+    if (event?.type === "session_meta") {
+      const workspace = normalizeWorkspaceCandidate(event.payload?.cwd);
+      if (workspace) return workspace;
+    }
+  }
+
+  for (const event of events) {
+    if (event?.type !== "turn_context") continue;
+    const roots = event.payload?.workspace_roots;
+    if (Array.isArray(roots)) {
+      const workspace = roots.map(normalizeWorkspaceCandidate).find(Boolean);
+      if (workspace) return workspace;
+    }
+
+    const workspace = normalizeWorkspaceCandidate(event.payload?.cwd);
+    if (workspace) return workspace;
+  }
+
+  return "";
+}
+
+function normalizeWorkspaceCandidate(candidate) {
+  if (typeof candidate !== "string" || candidate.trim() === "") return "";
+  const workspace = normalizeCandidatePath(candidate);
+  return safeStat(workspace)?.isDirectory() ? workspace : "";
+}
+
 function extractCommandWorkspace(processInfo) {
   const commands = processInfo?.recentCommands || [];
   for (const row of commands) {
@@ -346,6 +395,8 @@ function workspaceForThread(threadId, globalState, processInfo, eventSummary) {
   const cwd = processInfo?.recentCommands?.find((row) => row.cwd)?.cwd;
   if (cwd) return cwd;
 
+  if (eventSummary?.metadataWorkspace) return eventSummary.metadataWorkspace;
+
   if (eventSummary?.lastCwd) return eventSummary.lastCwd;
 
   const commandWorkspace = extractCommandWorkspace(processInfo);
@@ -368,7 +419,9 @@ function statusForSession(file, eventSummary, processInfo) {
 
   const now = Date.now();
   const ageMs = now - file.mtimeMs;
+  const beyondDoneWindow = ageMs >= DONE_WINDOW_MS;
   if (eventSummary?.hasTaskComplete) return ageMs < DONE_WINDOW_MS ? "done" : "idle";
+  if (beyondDoneWindow && !processInfo?.hasRecentProcess) return "idle";
   if (processInfo?.hasRecentProcess) return "working";
   if (eventSummary?.hasOpenToolCall || eventSummary?.hasRecentReasoning || (eventSummary?.hasCommentary && ageMs < DONE_WINDOW_MS)) {
     return "working";

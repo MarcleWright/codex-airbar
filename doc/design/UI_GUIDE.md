@@ -6,7 +6,7 @@ Codex Airbar currently has one floating monitor window.
 
 ## Layout Structure
 
-- Title bar: app name, always-on-top toggle, theme toggle, refresh/log/minimize/close controls.
+- Title bar: app name, always-on-top toggle, theme toggle, refresh, magnet snap, log, minimize, and close controls.
 - Project list: project cards grouped by workspace.
 - Project header: title, independent collapse and idle-visibility controls, collapsed-state working/done count capsules, and Explorer button.
 - Session rows: vertical status bar, title, elapsed time, inline context snippet, and an icon-only Codex action.
@@ -27,6 +27,8 @@ Codex Airbar currently has one floating monitor window.
 - Project headers expose a folder button that opens the project workspace in Explorer.
 - Project visibility uses paired `EyeOff` / `Eye` icons instead of color-only state.
 - Buttons stay visually transparent by default and use pressed-state color only as click feedback.
+- Pin and magnet controls use filled icons to indicate active state.
+- Status colors use violet for `working`, Codex-style blue for `done`, and muted gray for `idle`.
 - Scrollbars and future range inputs use slim custom styling so the UI reads as a compact utility rather than a stock system panel.
 
 ## Important UI States

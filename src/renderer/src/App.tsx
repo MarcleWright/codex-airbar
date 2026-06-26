@@ -14,8 +14,8 @@ type OpenActionKey = "openWorkspace" | "resumeSession";
 const SESSION_OPEN_ACTION: OpenActionKey = "resumeSession";
 
 const statusTone: Record<AirbarStatus, string> = {
-  working: "bg-sky-400 shadow-[0_0_14px_rgba(56,189,248,0.7)]",
-  done: "bg-emerald-400",
+  working: "bg-violet-400 shadow-[0_0_14px_rgba(167,139,250,0.6)]",
+  done: "bg-sky-400",
   idle: "bg-muted-foreground"
 };
 
@@ -63,6 +63,7 @@ export function App() {
   const previousStatusesRef = useRef<Map<string, AirbarStatus>>(new Map());
   const [actionError, setActionError] = useState<string | null>(null);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
+  const [topCenterSnapped, setTopCenterSnapped] = useState(false);
   const [clearedDoneSessions, setClearedDoneSessions] = useState<Record<string, string>>(() => {
     try {
       const saved = window.localStorage.getItem(CLEARED_DONE_STORAGE_KEY);
@@ -98,12 +99,19 @@ export function App() {
 
   const filteredProjects = useMemo(() => {
     return [...(snapshot?.projects || [])].sort((a, b) => {
+      const aHasDone = a.sessions.some((session) => session.status === "done" && clearedDoneSessions[session.id] !== session.updatedAt);
+      const bHasDone = b.sessions.some((session) => session.status === "done" && clearedDoneSessions[session.id] !== session.updatedAt);
+      if (aHasDone !== bHasDone) return aHasDone ? -1 : 1;
+
       const aWorking = a.sessions.some((session) => session.status === "working");
       const bWorking = b.sessions.some((session) => session.status === "working");
       if (aWorking !== bWorking) return aWorking ? -1 : 1;
-      return 0;
+
+      const aTime = new Date(a.sessions[0]?.updatedAt || 0).getTime();
+      const bTime = new Date(b.sessions[0]?.updatedAt || 0).getTime();
+      return bTime - aTime;
     });
-  }, [snapshot?.projects]);
+  }, [clearedDoneSessions, snapshot?.projects]);
 
   async function poll() {
     try {
@@ -139,9 +147,14 @@ export function App() {
 
   useEffect(() => {
     window.airbar.getAlwaysOnTop().then(setAlwaysOnTop).catch(() => null);
+    window.airbar.isTopCenterSnapped().then(setTopCenterSnapped).catch(() => null);
+    const offSnapState = window.airbar.onSnapTopCenterStateChanged(setTopCenterSnapped);
     poll();
     const timer = window.setInterval(poll, POLL_MS);
-    return () => window.clearInterval(timer);
+    return () => {
+      offSnapState();
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -155,6 +168,11 @@ export function App() {
   async function handleToggleAlwaysOnTop() {
     const next = await window.airbar.setAlwaysOnTop(!alwaysOnTop);
     setAlwaysOnTop(next);
+  }
+
+  async function handleSnapTopCenter() {
+    const next = await window.airbar.snapTopCenter();
+    setTopCenterSnapped(next);
   }
 
   return (
@@ -180,8 +198,14 @@ export function App() {
           <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Refresh" onClick={poll}>
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Snap to top center" onClick={() => window.airbar.snapTopCenter()}>
-            <Magnet className="h-3.5 w-3.5" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 rounded-sm"
+            title={topCenterSnapped ? "Snapped to top center" : "Snap to top center"}
+            onClick={handleSnapTopCenter}
+          >
+            <Magnet className={cn("h-3.5 w-3.5", topCenterSnapped ? "fill-current" : "")} />
           </Button>
           <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Open logs" onClick={() => window.airbar.openLogs()}>
             <FileText className="h-3.5 w-3.5" />
@@ -273,8 +297,8 @@ function ProjectCard({
 }) {
   const visibleSessions = project.sessions.filter((session) => {
     if (collapsed) return false;
-    if (hideIdle) return session.status !== "idle";
     if (session.status === "done" && isDoneCleared(session)) return false;
+    if (hideIdle && session.status === "idle") return false;
     return true;
   });
   const workingCount = project.sessions.filter((session) => session.status === "working").length;
@@ -311,10 +335,10 @@ function ProjectCard({
           {collapsed ? (
             <div className="flex shrink-0 items-center gap-1" title={`${workingCount} working, ${doneCount} done`}>
               {Array.from({ length: workingCount }).map((_, index) => (
-                <span key={`working-${index}`} className="h-2 w-2 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.7)]" />
+                <span key={`working-${index}`} className="h-2 w-2 rounded-full bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.6)]" />
               ))}
               {Array.from({ length: doneCount }).map((_, index) => (
-                <span key={`done-${index}`} className="h-2 w-2 rounded-full bg-emerald-400" />
+                <span key={`done-${index}`} className="h-2 w-2 rounded-full bg-sky-400" />
               ))}
             </div>
           ) : null}

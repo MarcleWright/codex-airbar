@@ -24,6 +24,7 @@ Turn Airbar into a denser, calmer floating monitor while improving project attri
 - Add collapsed-project working/done count capsules in the project header.
 - Improve workspace recovery in `src/status-reader.js` using additional `cwd` formats, command parsing, and conservative path inference.
 - Adjust the main window to use a wider default width and remove automatic top-edge snapping.
+- Add an explicit magnet control for top-center positioning without changing the window size.
 
 ## Non-goals
 
@@ -44,8 +45,9 @@ Turn Airbar into a denser, calmer floating monitor while improving project attri
 - Idle sessions are hidden by default, and each project's hide/show choice persists.
 - Project collapse no longer changes idle visibility state.
 - Collapsed project headers show working/done counts only.
-- Workspace inference reduces false `Projectless` grouping without inventing obviously wrong project roots such as install folders or broad parent directories.
+- Workspace inference uses session-file head metadata before fallback heuristics and reduces false `Projectless` grouping without inventing obviously wrong project roots such as install folders or broad parent directories.
 - The window no longer auto-snaps to the top edge and opens wider by default.
+- The magnet control can place the current-size window at top-center and show whether that snapped state is active.
 
 ## Execution Report
 
@@ -60,8 +62,10 @@ Turn Airbar into a denser, calmer floating monitor while improving project attri
 - Added per-project UI persistence keyed by workspace with independent `collapsed` and `hideIdle` flags, defaulting `hideIdle` to `true`.
 - Added collapsed-only project header count capsules for `working` and `done`.
 - Restyled scrollbars globally and added a slim custom `input[type="range"]` theme for future controls.
-- Expanded workspace inference by reading top-level event `cwd`, parsing `-C/--cd` arguments, and inferring repo roots from message paths with a conservative `Codex_Projects/<repo>` fallback.
+- Expanded workspace inference by reading session-file head metadata, top-level event `cwd`, `turn_context` workspace roots, parsing `-C/--cd` arguments, and inferring repo roots from message paths with a conservative `Codex_Projects/<repo>` fallback.
 - Removed the temporary auto-snap behavior and widened the default Electron window from 420px to 630px.
+- Simplified session lifecycle to `working` / `done` / `idle`, kept `done` visible for 18 hours, added user-clearable done memory, and prevented stale sessions older than that window from reviving as `working` after restart unless a fresh process signal exists.
+- Added a magnet button with filled/outline state for explicit top-center positioning.
 
 ### Validation
 
@@ -76,7 +80,7 @@ Turn Airbar into a denser, calmer floating monitor while improving project attri
 
 ## Reviewer Notes
 
-- `Projectless` still exists for sessions whose local Codex metadata does not expose a recoverable workspace path.
+- `Projectless` should now be rare because session-file head metadata is preferred; it can still appear if Codex metadata exposes no recoverable workspace path.
 - Message-path inference is intentionally conservative to avoid mislabeling unrelated directories as projects.
 
 ## Context Delta
@@ -86,6 +90,7 @@ Turn Airbar into a denser, calmer floating monitor while improving project attri
 - `src/status-reader.js` remains the only owner of workspace and status inference logic.
 - Session-row action defaults to `resumeSession`.
 - Project-level Explorer access and per-project UI memory remain part of the monitoring workflow.
+- Status reload behavior now treats stale sessions older than the 18-hour done window as `idle` unless `chat_processes.json` still shows a recent live process for that thread.
 
 ### Changed
 
@@ -93,12 +98,14 @@ Turn Airbar into a denser, calmer floating monitor while improving project attri
 - Idle sessions default to hidden.
 - The monitor window is now a wider free-floating panel rather than a top-snapping strip.
 - Compact presentation now favors a single-line session summary with inline context.
-- User-facing status colors now read as blue = `working`, green = `done`, while the underlying status inference remains local and heuristic.
+- User-facing status colors now read as violet = `working`, blue = `done`, while the underlying status inference remains local and heuristic.
+- `recent` is no longer a first-class status bucket.
 
 ### Avoid
 
 - Avoid broad path guessing that promotes install directories or parent folders into fake projects.
 - Avoid re-coupling project collapse behavior with idle-session visibility.
+- Avoid reintroducing automatic edge snapping; top-center placement should stay an explicit magnet action.
 
 ### Follow-up
 

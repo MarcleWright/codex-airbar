@@ -7,6 +7,12 @@ contextBridge.exposeInMainWorld("airbar", {
   openProjectFolder: (workspacePath) => ipcRenderer.invoke("app:openProjectFolder", workspacePath),
   minimize: () => ipcRenderer.invoke("app:minimize"),
   snapTopCenter: () => ipcRenderer.invoke("app:snapTopCenter"),
+  isTopCenterSnapped: () => ipcRenderer.invoke("app:isTopCenterSnapped"),
+  onSnapTopCenterStateChanged: (callback) => {
+    const listener = (_event, value) => callback(Boolean(value));
+    ipcRenderer.on("app:snapTopCenterStateChanged", listener);
+    return () => ipcRenderer.removeListener("app:snapTopCenterStateChanged", listener);
+  },
   getAlwaysOnTop: () => ipcRenderer.invoke("app:getAlwaysOnTop"),
   setAlwaysOnTop: (value) => ipcRenderer.invoke("app:setAlwaysOnTop", value),
   close: () => ipcRenderer.invoke("app:close"),

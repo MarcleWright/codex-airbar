@@ -11,7 +11,10 @@ Summary:
 - Refined the Airbar into a denser monitoring surface with slimmer headers, tighter session rows, icon-only actions, hidden idle sessions by default, and collapsed-project working/done count capsules.
 - Improved workspace recovery in `status-reader.js` by reading more `cwd` shapes, parsing `-C/--cd` command arguments, and inferring repo roots from message paths while avoiding false parent-directory matches.
 - Removed top-edge auto-snapping, widened the default window, restyled scrollbars/range inputs, and kept always-on-top as a manual toggle.
-- Clarified status semantics so `working` reads as blue and `done` reads as green, while keeping the underlying inference heuristics local and best-effort.
+- Clarified status semantics so `working` reads as violet and `done` reads as Codex-style blue, while keeping the underlying inference heuristics local and best-effort.
+- Simplified session lifecycle to `working` / `done` / `idle`, kept `done` visible for up to 18 hours, added manual clear-done memory, and prevented stale pre-restart sessions older than that window from reviving as `working` without a fresh process signal.
+- Added an explicit magnet control that snaps the window to top-center using the current size and reflects snapped state with a filled icon.
+- Improved workspace attribution by reading session-file head metadata such as `session_meta.payload.cwd`, `turn_context.payload.workspace_roots`, and early `turn_context.payload.cwd`.
 - Confirmed that completed local sessions still expose process signals such as `reasoning`, tool-call events, `turn_context`, `agent_message`, `final_answer`, and `task_complete`, which may support future richer Airbar interaction states even though they are not yet surfaced in the UI.
 
 Primary task links:

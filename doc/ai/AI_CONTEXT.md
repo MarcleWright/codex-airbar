@@ -11,8 +11,9 @@
 - The project is a new MVP, not yet packaged.
 - Renderer uses Vite + React + Tailwind with shadcn-style local UI primitives.
 - Codex status is inferred from local state files and process-manager records.
-- Some sessions still fall back to `Projectless` when local Codex metadata does not expose a recoverable workspace path.
+- Sessions should first recover workspace from session-file head metadata; fallback heuristics only apply when `session_meta` and early `turn_context` do not expose a usable path.
 - Completed local sessions retain richer event history than the current Airbar UI uses, including `reasoning`, tool-call, `turn_context`, `final_answer`, and `task_complete` signals.
+- Sessions older than the 18-hour done window should fall back to `idle` on reload unless a fresh process-manager signal proves they are actively running again.
 - Documentation files must be UTF-8.
 
 ## Current Important Decisions
@@ -24,8 +25,9 @@
 - `resumeSession` is the current default session action and launches `codex resume <sessionId>` in an interactive terminal window.
 - Project UI memory is per-workspace and stores two independent booleans: `collapsed` and `hideIdle`.
 - Idle sessions are hidden by default until a project-specific user toggle says otherwise.
-- The window now opens as a wider floating panel without automatic top-edge snap behavior.
-- Status color semantics are user-facing only: blue means `working`, green means `done`, but both are still inferred from local recency and event/output signals rather than authoritative Codex state.
+- The window opens as a wider floating panel without automatic edge-docking; the magnet button explicitly snaps it to top-center and reflects snapped state with a filled icon.
+- Status color semantics are user-facing only: violet means `working`, blue means `done`, but both are still inferred from local recency and event/output signals rather than authoritative Codex state.
+- Status lifecycle is now `working` / `done` / `idle`; `done` persists up to 18 hours unless the user clears it locally, and stale older sessions should not revive as `working` after restart without a current process signal.
 - Future status improvements can use event-sequence signals from completed sessions without adding direct Codex control yet.
 - `start-codex-airbar.bat` is the current user-facing launcher.
 
