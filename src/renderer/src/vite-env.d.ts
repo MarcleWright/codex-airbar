@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-type AirbarStatus = "working" | "done" | "recent" | "idle";
+type AirbarStatus = "working" | "done" | "idle";
 
 interface AirbarCommand {
   command: string;
@@ -42,6 +42,7 @@ interface Window {
     resumeSession: (sessionId: string, workspacePath?: string) => Promise<{ ok: boolean; error?: string }>;
     openProjectFolder: (workspacePath: string) => Promise<{ ok: boolean; error?: string }>;
     minimize: () => Promise<void>;
+    snapTopCenter: () => Promise<void>;
     getAlwaysOnTop: () => Promise<boolean>;
     setAlwaysOnTop: (value: boolean) => Promise<boolean>;
     close: () => Promise<void>;

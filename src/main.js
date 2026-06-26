@@ -12,6 +12,9 @@ const appIconPath = path.join(__dirname, "..", "assets", process.platform === "w
 let mainWindow = null;
 let isPinnedToTop = true;
 let resolvedCodexPath = null;
+let allowProgrammaticMinimize = false;
+let lastNormalBounds = null;
+let isRestoringBounds = false;
 
 function log(message, error) {
   const detail = error ? `\n${error.stack || error.message || String(error)}` : "";
@@ -68,7 +71,7 @@ function getTopCenterPosition(windowWidth, windowHeight) {
   const display = screen.getPrimaryDisplay();
   const { x, y, width, height } = display.workArea;
   const nextX = Math.round(x + (width - windowWidth) / 2);
-  const nextY = Math.max(y + 24, y);
+  const nextY = y;
   return {
     x: nextX,
     y: nextY,
@@ -76,9 +79,51 @@ function getTopCenterPosition(windowWidth, windowHeight) {
   };
 }
 
+function snapWindowToTopCenter(targetWindow) {
+  if (!targetWindow || targetWindow.isDestroyed()) return;
+  const [windowWidth, windowHeight] = targetWindow.getSize();
+  const position = getTopCenterPosition(windowWidth, windowHeight);
+  targetWindow.setPosition(position.x, position.y);
+}
+
+function isWindowsSnapBounds(bounds) {
+  const display = screen.getDisplayMatching(bounds);
+  const area = display.workArea;
+  const nearlyFullHeight = Math.abs(bounds.height - area.height) <= 8;
+  const nearlyFullWidth = Math.abs(bounds.width - area.width) <= 8;
+  const nearlyHalfWidth = Math.abs(bounds.width - Math.round(area.width / 2)) <= 16;
+  const atLeftEdge = Math.abs(bounds.x - area.x) <= 8;
+  const atRightEdge = Math.abs(bounds.x + bounds.width - (area.x + area.width)) <= 8;
+  const atTopEdge = Math.abs(bounds.y - area.y) <= 8;
+  return atTopEdge && nearlyFullHeight && (nearlyFullWidth || nearlyHalfWidth) && (atLeftEdge || atRightEdge || nearlyFullWidth);
+}
+
+function rememberNormalBounds(targetWindow) {
+  if (!targetWindow || targetWindow.isDestroyed() || isRestoringBounds) return;
+  if (targetWindow.isMaximized() || targetWindow.isFullScreen() || targetWindow.isMinimized()) return;
+  const bounds = targetWindow.getBounds();
+  if (isWindowsSnapBounds(bounds)) return;
+  lastNormalBounds = bounds;
+}
+
+function restoreFromWindowsSnap(targetWindow) {
+  if (!targetWindow || targetWindow.isDestroyed() || isRestoringBounds) return;
+  const bounds = targetWindow.getBounds();
+  if (!isWindowsSnapBounds(bounds)) {
+    rememberNormalBounds(targetWindow);
+    return;
+  }
+  const fallback = lastNormalBounds || { width: 630, height: 210, ...getTopCenterPosition(630, 210) };
+  isRestoringBounds = true;
+  targetWindow.setBounds(fallback);
+  queueMicrotask(() => {
+    isRestoringBounds = false;
+  });
+}
+
 function createWindow() {
   const width = 630;
-  const height = 620;
+  const height = 210;
   const position = getTopCenterPosition(width, height);
 
   mainWindow = new BrowserWindow({
@@ -87,12 +132,14 @@ function createWindow() {
     x: position.x,
     y: position.y,
     minWidth: 480,
-    minHeight: 420,
+    minHeight: 180,
     frame: false,
     transparent: false,
     alwaysOnTop: isPinnedToTop,
     skipTaskbar: false,
     resizable: true,
+    maximizable: false,
+    fullscreenable: false,
     backgroundColor: "#0f1115",
     title: "Codex Airbar",
     icon: appIconPath,
@@ -104,6 +151,26 @@ function createWindow() {
   });
 
   mainWindow.setAlwaysOnTop(isPinnedToTop, "floating");
+  lastNormalBounds = mainWindow.getBounds();
+
+  mainWindow.on("maximize", () => {
+    mainWindow?.unmaximize();
+  });
+  mainWindow.on("enter-full-screen", () => {
+    mainWindow?.setFullScreen(false);
+  });
+  mainWindow.on("minimize", (event) => {
+    if (allowProgrammaticMinimize) return;
+    event.preventDefault();
+    mainWindow?.restore();
+  });
+  mainWindow.on("move", () => {
+    restoreFromWindowsSnap(mainWindow);
+  });
+  mainWindow.on("resize", () => {
+    restoreFromWindowsSnap(mainWindow);
+  });
+
   if (devServerUrl) {
     mainWindow.loadURL(devServerUrl);
   } else {
@@ -157,7 +224,15 @@ ipcMain.handle("codex:getSnapshot", async () => {
 });
 
 ipcMain.handle("app:minimize", () => {
+  allowProgrammaticMinimize = true;
   mainWindow?.minimize();
+  queueMicrotask(() => {
+    allowProgrammaticMinimize = false;
+  });
+});
+
+ipcMain.handle("app:snapTopCenter", () => {
+  snapWindowToTopCenter(mainWindow);
 });
 
 ipcMain.handle("app:getAlwaysOnTop", () => {

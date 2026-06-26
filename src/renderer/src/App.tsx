@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, FileText, FolderOpen, Minus, Moon, Pin, PinOff, RefreshCw, Sun, Terminal, X } from "lucide-react";
+import { CheckCheck, ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, FileText, FolderOpen, Magnet, Minus, Moon, Pin, PinOff, RefreshCw, Sun, Terminal, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "./theme-provider";
 import { Button } from "./components/ui/button";
@@ -7,15 +7,15 @@ import { cn } from "./lib/utils";
 
 const POLL_MS = 5000;
 const PROJECT_UI_STORAGE_KEY = "codex-airbar-project-ui";
+const CLEARED_DONE_STORAGE_KEY = "codex-airbar-cleared-done";
 
 type OpenActionKey = "openWorkspace" | "resumeSession";
 
 const SESSION_OPEN_ACTION: OpenActionKey = "resumeSession";
 
 const statusTone: Record<AirbarStatus, string> = {
-  working: "bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.75)]",
-  done: "bg-sky-400",
-  recent: "bg-amber-300",
+  working: "bg-sky-400 shadow-[0_0_14px_rgba(56,189,248,0.7)]",
+  done: "bg-emerald-400",
   idle: "bg-muted-foreground"
 };
 
@@ -63,6 +63,14 @@ export function App() {
   const previousStatusesRef = useRef<Map<string, AirbarStatus>>(new Map());
   const [actionError, setActionError] = useState<string | null>(null);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
+  const [clearedDoneSessions, setClearedDoneSessions] = useState<Record<string, string>>(() => {
+    try {
+      const saved = window.localStorage.getItem(CLEARED_DONE_STORAGE_KEY);
+      return saved ? (JSON.parse(saved) as Record<string, string>) : {};
+    } catch {
+      return {};
+    }
+  });
   const [projectUiState, setProjectUiState] = useState<Record<string, ProjectUiState>>(() => {
     try {
       const saved = window.localStorage.getItem(PROJECT_UI_STORAGE_KEY);
@@ -88,7 +96,14 @@ export function App() {
   });
   const { theme, setTheme } = useTheme();
 
-  const filteredProjects = snapshot?.projects || [];
+  const filteredProjects = useMemo(() => {
+    return [...(snapshot?.projects || [])].sort((a, b) => {
+      const aWorking = a.sessions.some((session) => session.status === "working");
+      const bWorking = b.sessions.some((session) => session.status === "working");
+      if (aWorking !== bWorking) return aWorking ? -1 : 1;
+      return 0;
+    });
+  }, [snapshot?.projects]);
 
   async function poll() {
     try {
@@ -133,13 +148,17 @@ export function App() {
     window.localStorage.setItem(PROJECT_UI_STORAGE_KEY, JSON.stringify(projectUiState));
   }, [projectUiState]);
 
+  useEffect(() => {
+    window.localStorage.setItem(CLEARED_DONE_STORAGE_KEY, JSON.stringify(clearedDoneSessions));
+  }, [clearedDoneSessions]);
+
   async function handleToggleAlwaysOnTop() {
     const next = await window.airbar.setAlwaysOnTop(!alwaysOnTop);
     setAlwaysOnTop(next);
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+    <div className="airbar-shell flex h-screen flex-col overflow-hidden bg-background text-foreground">
       <header className="flex h-8 items-center border-b border-border bg-background/95">
         <div className="drag-region flex h-full min-w-0 flex-1 items-center gap-1.5 px-2">
           <div className="h-4 w-1 rounded-full bg-gradient-to-b from-emerald-300 to-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.28)]" />
@@ -160,6 +179,9 @@ export function App() {
           </Button>
           <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Refresh" onClick={poll}>
             <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Snap to top center" onClick={() => window.airbar.snapTopCenter()}>
+            <Magnet className="h-3.5 w-3.5" />
           </Button>
           <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Open logs" onClick={() => window.airbar.openLogs()}>
             <FileText className="h-3.5 w-3.5" />
@@ -183,6 +205,18 @@ export function App() {
               key={project.workspace}
               project={project}
               onOpenError={setActionError}
+              isDoneCleared={(session) => clearedDoneSessions[session.id] === session.updatedAt}
+              onClearDone={() =>
+                setClearedDoneSessions((current) => {
+                  const next = { ...current };
+                  for (const session of project.sessions) {
+                    if (session.status === "done") {
+                      next[session.id] = session.updatedAt;
+                    }
+                  }
+                  return next;
+                })
+              }
               collapsed={projectUiState[project.workspace]?.collapsed ?? DEFAULT_PROJECT_UI_STATE.collapsed}
               hideIdle={projectUiState[project.workspace]?.hideIdle ?? DEFAULT_PROJECT_UI_STATE.hideIdle}
               onToggleCollapsed={() =>
@@ -221,6 +255,8 @@ export function App() {
 function ProjectCard({
   project,
   onOpenError,
+  isDoneCleared,
+  onClearDone,
   collapsed,
   hideIdle,
   onToggleCollapsed,
@@ -228,6 +264,8 @@ function ProjectCard({
 }: {
   project: AirbarProject;
   onOpenError: (message: string | null) => void;
+  isDoneCleared: (session: AirbarSession) => boolean;
+  onClearDone: () => void;
   collapsed: boolean;
   hideIdle: boolean;
   onToggleCollapsed: () => void;
@@ -236,10 +274,11 @@ function ProjectCard({
   const visibleSessions = project.sessions.filter((session) => {
     if (collapsed) return false;
     if (hideIdle) return session.status !== "idle";
+    if (session.status === "done" && isDoneCleared(session)) return false;
     return true;
   });
   const workingCount = project.sessions.filter((session) => session.status === "working").length;
-  const doneCount = project.sessions.filter((session) => session.status === "done").length;
+  const doneCount = project.sessions.filter((session) => session.status === "done" && !isDoneCleared(session)).length;
 
   const isProjectless = project.workspace === "Projectless";
 
@@ -270,21 +309,28 @@ function ProjectCard({
             <span className="block truncate text-[11px] font-medium leading-4">{project.name}</span>
           </div>
           {collapsed ? (
-            <div className="flex shrink-0 items-center gap-1">
-              {workingCount > 0 ? (
-                <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-emerald-500 px-1 text-[9px] font-semibold leading-none text-white">
-                  {workingCount}
-                </span>
-              ) : null}
-              {doneCount > 0 ? (
-                <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-sky-500 px-1 text-[9px] font-semibold leading-none text-white">
-                  {doneCount}
-                </span>
-              ) : null}
+            <div className="flex shrink-0 items-center gap-1" title={`${workingCount} working, ${doneCount} done`}>
+              {Array.from({ length: workingCount }).map((_, index) => (
+                <span key={`working-${index}`} className="h-2 w-2 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.7)]" />
+              ))}
+              {Array.from({ length: doneCount }).map((_, index) => (
+                <span key={`done-${index}`} className="h-2 w-2 rounded-full bg-emerald-400" />
+              ))}
             </div>
           ) : null}
         </div>
         <div className="flex items-center gap-1">
+          {doneCount > 0 ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 shrink-0 rounded-sm"
+              title="Clear done"
+              onClick={onClearDone}
+            >
+              <CheckCheck className="h-3 w-3" />
+            </Button>
+          ) : null}
           <Button
             variant={hideIdle ? "secondary" : "ghost"}
             size="icon"
@@ -339,13 +385,13 @@ function SessionRow({
       <span className={cn("h-6 w-1 rounded-full self-center", statusTone[session.status])} />
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="min-w-0 truncate text-[11px] leading-4" title={session.title}>
+          <span className="shrink-0 truncate text-[11px] leading-4" title={session.title}>
             {session.title}
           </span>
           <span className="shrink-0 text-[9px] leading-4 text-muted-foreground" title={new Date(session.updatedAt).toLocaleString()}>
             {formatElapsed(session.updatedAt)}
           </span>
-          {message ? <span className="min-w-0 truncate text-[9px] leading-4 text-muted-foreground">{message}</span> : null}
+          {message ? <span className="min-w-0 flex-1 truncate text-[9px] leading-4 text-muted-foreground">{message}</span> : null}
         </div>
         {actionError ? <div className="mt-0.5 text-[9px] text-amber-300">{actionError}</div> : null}
       </div>

@@ -4,8 +4,9 @@ const os = require("node:os");
 
 const CODEX_HOME = path.join(os.homedir(), ".codex");
 const ACTIVE_WINDOW_MS = 90 * 1000;
-const RECENT_WINDOW_MS = 8 * 60 * 1000;
+const DONE_WINDOW_MS = 18 * 60 * 60 * 1000;
 const MAX_SESSION_FILES = 120;
+const AIRBAR_MARKER_PREFIX = "[airbar]";
 
 function safeReadJson(filePath, fallback) {
   try {
@@ -140,6 +141,7 @@ function summarizeLastEvents(filePath) {
   }
 
   const last = events.at(-1) || null;
+  const tailEvents = events.slice(-8);
   const lastAgentMessage = [...events].reverse().find((event) => {
     return event?.payload?.type === "agent_message" || event?.type === "response_item";
   });
@@ -152,30 +154,74 @@ function summarizeLastEvents(filePath) {
     return payloadType === "function_call_output" || payloadType === "custom_tool_call_output";
   });
 
+  const fullLastMessage = extractFullMessageText(lastAgentMessage);
+
   return {
     lastType: last?.type || last?.payload?.type || "unknown",
     lastPayloadType: last?.payload?.type || null,
-    lastMessage: extractShortMessage(lastAgentMessage),
+    lastMessage: trimText(stripAirbarMarker(fullLastMessage)),
+    airbarMarker: extractAirbarMarker(fullLastMessage),
     lastCwd: extractLastCwd(events),
     hasFunctionCall,
-    hasFunctionOutput
+    hasFunctionOutput,
+    hasTaskComplete: tailEvents.some((event) => event?.payload?.type === "task_complete"),
+    hasFinalAnswer: tailEvents.some((event) => event?.payload?.phase === "final_answer"),
+    hasCommentary: tailEvents.some((event) => event?.payload?.phase === "commentary"),
+    hasRecentReasoning: tailEvents.some((event) => event?.payload?.type === "reasoning"),
+    hasOpenToolCall: tailEvents.some((event) => {
+      const type = event?.payload?.type;
+      return type === "function_call" || type === "custom_tool_call";
+    }),
+    hasRecentToolOutput: tailEvents.some((event) => {
+      const type = event?.payload?.type;
+      return type === "function_call_output" || type === "custom_tool_call_output";
+    })
   };
 }
 
-function extractShortMessage(event) {
+function extractFullMessageText(event) {
   const payload = event?.payload;
   const direct = payload?.message;
-  if (typeof direct === "string") return trimText(direct);
+  if (typeof direct === "string") return direct.trim();
   const content = payload?.content;
   if (Array.isArray(content)) {
-    const text = content.map((part) => part.text || part.output_text || "").join(" ").trim();
-    return trimText(text);
+    return content.map((part) => part.text || part.output_text || "").join(" ").trim();
   }
   return "";
 }
 
 function trimText(text) {
   return text.replace(/\s+/g, " ").slice(0, 160);
+}
+
+function extractAirbarMarker(text) {
+  if (typeof text !== "string" || text.trim() === "") return null;
+  const markerLine = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.startsWith(AIRBAR_MARKER_PREFIX));
+  if (!markerLine) return null;
+
+  const payload = markerLine.slice(AIRBAR_MARKER_PREFIX.length).trim();
+  const parts = payload.split("|").map((part) => part.trim()).filter(Boolean);
+  const marker = {};
+  for (const part of parts) {
+    const [rawKey, ...rest] = part.split("=");
+    const key = rawKey?.trim().toLowerCase();
+    const value = rest.join("=").trim();
+    if (!key || !value) continue;
+    marker[key] = value;
+  }
+  return Object.keys(marker).length ? marker : null;
+}
+
+function stripAirbarMarker(text) {
+  if (typeof text !== "string" || text.trim() === "") return "";
+  return text
+    .split(/\r?\n/)
+    .filter((line) => !line.trim().startsWith(AIRBAR_MARKER_PREFIX))
+    .join(" ")
+    .trim();
 }
 
 function inferWorkspaceFromText(text) {
@@ -269,7 +315,7 @@ function readProcessManager() {
   for (const row of Array.isArray(rows) ? rows : []) {
     if (!row.conversationId) continue;
     const ageMs = now - Number(row.updatedAtMs || row.startedAtMs || 0);
-    const active = ageMs >= 0 && ageMs < RECENT_WINDOW_MS;
+    const active = ageMs >= 0 && ageMs < DONE_WINDOW_MS;
     const existing = byThread.get(row.conversationId) || { recentCommands: [], hasRecentProcess: false };
     existing.recentCommands.push({
       command: row.command || "",
@@ -288,6 +334,8 @@ function readGlobalState() {
 }
 
 function workspaceForThread(threadId, globalState, processInfo, eventSummary) {
+  if (eventSummary?.airbarMarker?.workspace) return eventSummary.airbarMarker.workspace;
+
   const rootHints = globalState?.["thread-workspace-root-hints"] || {};
   if (rootHints[threadId]) return rootHints[threadId];
 
@@ -310,11 +358,26 @@ function workspaceForThread(threadId, globalState, processInfo, eventSummary) {
 }
 
 function statusForSession(file, eventSummary, processInfo) {
+  const markerStatus = eventSummary?.airbarMarker?.status;
+  if (markerStatus === "working" || markerStatus === "done" || markerStatus === "idle") {
+    return markerStatus;
+  }
+  if (markerStatus === "complete" || markerStatus === "recent") {
+    return "done";
+  }
+
   const now = Date.now();
   const ageMs = now - file.mtimeMs;
-  if (processInfo?.hasRecentProcess || ageMs < ACTIVE_WINDOW_MS) return "working";
-  if (ageMs < RECENT_WINDOW_MS && eventSummary.hasFunctionOutput) return "done";
-  if (ageMs < RECENT_WINDOW_MS) return "recent";
+  if (eventSummary?.hasTaskComplete) return ageMs < DONE_WINDOW_MS ? "done" : "idle";
+  if (processInfo?.hasRecentProcess) return "working";
+  if (eventSummary?.hasOpenToolCall || eventSummary?.hasRecentReasoning || (eventSummary?.hasCommentary && ageMs < DONE_WINDOW_MS)) {
+    return "working";
+  }
+  if (eventSummary?.hasFinalAnswer && !eventSummary?.hasOpenToolCall && ageMs < DONE_WINDOW_MS) {
+    return "done";
+  }
+  if (ageMs < ACTIVE_WINDOW_MS) return "working";
+  if (ageMs < DONE_WINDOW_MS && (eventSummary.hasRecentToolOutput || eventSummary.hasFunctionOutput)) return "done";
   return "idle";
 }
 
@@ -342,7 +405,8 @@ function readCodexSnapshot() {
     const processInfo = processes.get(threadId) || null;
     const eventSummary = summarizeLastEvents(file.path);
     const workspace = workspaceForThread(threadId, globalState, processInfo, eventSummary);
-    const projectName = workspace === "Projectless" ? "Projectless" : path.basename(workspace);
+    const markerProject = eventSummary?.airbarMarker?.project;
+    const projectName = markerProject || (workspace === "Projectless" ? "Projectless" : path.basename(workspace));
     const status = statusForSession(file, eventSummary, processInfo);
     const session = {
       id: threadId,
@@ -361,7 +425,7 @@ function readCodexSnapshot() {
         workspace,
         name: projectName,
         sessions: [],
-        counts: { working: 0, done: 0, recent: 0, idle: 0 }
+        counts: { working: 0, done: 0, idle: 0 }
       });
     }
     const project = projects.get(workspace);
