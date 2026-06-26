@@ -3,8 +3,7 @@
 ## Current Priorities
 
 - Keep Codex Airbar as a lightweight local Electron floating monitor.
-- Improve status accuracy and user ergonomics before adding direct Codex control.
-- Keep direct session deep-link navigation out of scope unless a reliable Codex Desktop entry point is discovered.
+- Improve workspace attribution and monitoring ergonomics before adding broader direct Codex control.
 - Preserve read-only access to `%USERPROFILE%\.codex` unless the user explicitly asks for write/control features.
 
 ## Current Constraints
@@ -12,6 +11,7 @@
 - The project is a new MVP, not yet packaged.
 - Renderer uses Vite + React + Tailwind with shadcn-style local UI primitives.
 - Codex status is inferred from local state files and process-manager records.
+- Some sessions still fall back to `Projectless` when local Codex metadata does not expose a recoverable workspace path.
 - Documentation files must be UTF-8.
 
 ## Current Important Decisions
@@ -20,8 +20,10 @@
 - Main process owns filesystem access and notifications; renderer owns polling and presentation.
 - Theme switching is centralized in `src/renderer/src/theme-provider.tsx` and CSS variables in `src/renderer/src/styles.css`.
 - Session actions are registry-based. The current options are `openWorkspace` and `resumeSession`.
-- `openWorkspace` remains the default action and uses `codex app <workspace>`.
-- `resumeSession` launches `codex resume <sessionId>` in an interactive terminal window.
+- `resumeSession` is the current default session action and launches `codex resume <sessionId>` in an interactive terminal window.
+- Project UI memory is per-workspace and stores two independent booleans: `collapsed` and `hideIdle`.
+- Idle sessions are hidden by default until a project-specific user toggle says otherwise.
+- The window now opens as a wider floating panel without automatic top-edge snap behavior.
 - `start-codex-airbar.bat` is the current user-facing launcher.
 
 ## Suggested Read Order

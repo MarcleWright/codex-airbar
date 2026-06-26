@@ -2,6 +2,20 @@
 
 ## Recent
 
+### 2026-06-26 Compact Monitor Density, Workspace Recovery, And Window Behavior
+
+Status: Done
+
+Summary:
+
+- Refined the Airbar into a denser monitoring surface with slimmer headers, tighter session rows, icon-only actions, hidden idle sessions by default, and collapsed-project working/done count capsules.
+- Improved workspace recovery in `status-reader.js` by reading more `cwd` shapes, parsing `-C/--cd` command arguments, and inferring repo roots from message paths while avoiding false parent-directory matches.
+- Removed top-edge auto-snapping, widened the default window, restyled scrollbars/range inputs, and kept always-on-top as a manual toggle.
+
+Primary task links:
+
+- `ai/tasks/2026-06-26_01_compact-monitor-density-and-workspace-recovery.md`
+
 ### 2026-06-25 Switchable Session Open Actions
 
 Status: Done

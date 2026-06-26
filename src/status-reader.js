@@ -23,6 +23,48 @@ function safeStat(filePath) {
   }
 }
 
+function normalizeCandidatePath(filePath) {
+  if (typeof filePath !== "string" || filePath.trim() === "") return "";
+  return filePath.replace(/\//g, path.sep).trim();
+}
+
+function findWorkspaceRoot(filePath) {
+  const normalized = normalizeCandidatePath(filePath);
+  if (!normalized) return "";
+
+  const stat = safeStat(normalized);
+  let current = stat?.isDirectory() ? normalized : path.dirname(normalized);
+  if (!current || !safeStat(current)?.isDirectory()) return "";
+
+  let codexProjectsRoot = "";
+  let codexProjectsChild = "";
+  while (true) {
+    if (safeStat(path.join(current, ".git"))) return current;
+
+    const parent = path.dirname(current);
+    if (path.basename(current) === "Codex_Projects" && parent !== current) {
+      codexProjectsRoot = current;
+      codexProjectsChild = path.basename(stat?.isDirectory() ? normalized : path.dirname(normalized));
+    }
+
+    if (parent === current) break;
+    current = parent;
+  }
+
+  if (codexProjectsRoot) {
+    const relative = path.relative(codexProjectsRoot, stat?.isDirectory() ? normalized : path.dirname(normalized));
+    const [firstSegment] = relative.split(/[\\/]/).filter(Boolean);
+    if (firstSegment) {
+      const candidate = path.join(codexProjectsRoot, firstSegment);
+      if (safeStat(candidate)?.isDirectory()) {
+        return candidate;
+      }
+    }
+  }
+
+  return "";
+}
+
 function readSessionIndex() {
   const indexPath = path.join(CODEX_HOME, "session_index.jsonl");
   try {
@@ -136,11 +178,84 @@ function trimText(text) {
   return text.replace(/\s+/g, " ").slice(0, 160);
 }
 
+function inferWorkspaceFromText(text) {
+  if (typeof text !== "string" || text.trim() === "") return "";
+
+  const candidates = [];
+  const markdownPathPattern = /\((([A-Za-z]:[\\/][^)\r\n]+))\)/g;
+  const windowsPathPattern = /([A-Za-z]:[\\/][^\s<>"`|]+(?:\s+[^\s<>"`|]+)*)/g;
+
+  for (const match of text.matchAll(markdownPathPattern)) {
+    candidates.push(match[1]);
+  }
+  for (const match of text.matchAll(windowsPathPattern)) {
+    candidates.push(match[1]);
+  }
+
+  for (const candidate of candidates) {
+    const workspace = findWorkspaceRoot(candidate);
+    if (workspace) {
+      return workspace;
+    }
+  }
+
+  return "";
+}
+
+function tokenizeCommand(command) {
+  if (typeof command !== "string" || command.trim() === "") return [];
+  const matches = command.match(/"[^"]*"|'[^']*'|\S+/g) || [];
+  return matches.map((part) => {
+    if (
+      (part.startsWith('"') && part.endsWith('"')) ||
+      (part.startsWith("'") && part.endsWith("'"))
+    ) {
+      return part.slice(1, -1);
+    }
+    return part;
+  });
+}
+
+function parseWorkspaceFromCommand(command) {
+  const tokens = tokenizeCommand(command);
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === "-C" || token === "--cd") {
+      const next = tokens[index + 1];
+      if (typeof next === "string" && next.trim() !== "") {
+        return next;
+      }
+    }
+    if (token.startsWith("-C=") || token.startsWith("--cd=")) {
+      const [, value = ""] = token.split(/=(.*)/s);
+      if (value.trim() !== "") {
+        return value;
+      }
+    }
+  }
+  return "";
+}
+
 function extractLastCwd(events) {
   for (let index = events.length - 1; index >= 0; index -= 1) {
-    const payload = events[index]?.payload;
+    const event = events[index];
+    if (typeof event?.cwd === "string" && event.cwd.trim() !== "") {
+      return event.cwd;
+    }
+    const payload = event?.payload;
     if (typeof payload?.cwd === "string" && payload.cwd.trim() !== "") {
       return payload.cwd;
+    }
+  }
+  return "";
+}
+
+function extractCommandWorkspace(processInfo) {
+  const commands = processInfo?.recentCommands || [];
+  for (const row of commands) {
+    const workspace = parseWorkspaceFromCommand(row.command);
+    if (workspace) {
+      return workspace;
     }
   }
   return "";
@@ -184,6 +299,12 @@ function workspaceForThread(threadId, globalState, processInfo, eventSummary) {
   if (cwd) return cwd;
 
   if (eventSummary?.lastCwd) return eventSummary.lastCwd;
+
+  const commandWorkspace = extractCommandWorkspace(processInfo);
+  if (commandWorkspace) return commandWorkspace;
+
+  const messageWorkspace = inferWorkspaceFromText(eventSummary?.lastMessage);
+  if (messageWorkspace) return messageWorkspace;
 
   return "Projectless";
 }

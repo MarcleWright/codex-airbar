@@ -21,8 +21,8 @@ Codex Airbar is a local Electron app that watches Codex session metadata and dis
 ## Responsibility Boundaries
 
 - Main process owns filesystem access, Electron window behavior, system notifications, and app logs.
-- Renderer owns presentation, filtering, polling cadence, detecting status transitions between snapshots, and theme switching.
-- `status-reader.js` owns all knowledge of Codex local file formats and status inference.
+- Renderer owns presentation, polling cadence, detecting status transitions between snapshots, local UI memory, and theme switching.
+- `status-reader.js` owns all knowledge of Codex local file formats, workspace recovery heuristics, and status inference.
 
 ## Data Flow
 
@@ -40,3 +40,6 @@ Codex Airbar is a local Electron app that watches Codex session metadata and dis
 - Use CSS variable theme tokens so light/dark theme switching stays centralized.
 - Use read-only filesystem inspection instead of writing to Codex state.
 - Keep status inference centralized in `src/status-reader.js`.
+- Recover workspaces conservatively from multiple local signals: persisted hints, writable roots, process `cwd`, event `cwd`, explicit `-C/--cd` command arguments, and repo-root inference from message paths.
+- Keep project UI memory renderer-local and persist it by workspace key in `localStorage`.
+- Keep the monitor window as a wider frameless floating panel without automatic edge-docking behavior.

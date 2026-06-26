@@ -1,24 +1,16 @@
-import { CheckCircle2, ChevronDown, ChevronRight, Circle, ExternalLink, Eye, EyeOff, FileText, FolderOpen, Minus, Moon, Pin, PinOff, RefreshCw, Sun, Terminal, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, FileText, FolderOpen, Minus, Moon, Pin, PinOff, RefreshCw, Sun, Terminal, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "./theme-provider";
-import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardHeader } from "./components/ui/card";
 import { cn } from "./lib/utils";
 
 const POLL_MS = 5000;
-const PROJECT_COLLAPSE_STORAGE_KEY = "codex-airbar-project-collapse";
+const PROJECT_UI_STORAGE_KEY = "codex-airbar-project-ui";
 
 type OpenActionKey = "openWorkspace" | "resumeSession";
 
 const SESSION_OPEN_ACTION: OpenActionKey = "resumeSession";
-
-const statusLabels: Record<AirbarStatus, string> = {
-  working: "Working",
-  done: "Done",
-  recent: "Recent",
-  idle: "Idle"
-};
 
 const statusTone: Record<AirbarStatus, string> = {
   working: "bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.75)]",
@@ -27,7 +19,15 @@ const statusTone: Record<AirbarStatus, string> = {
   idle: "bg-muted-foreground"
 };
 
-type ProjectCollapseMode = "expanded" | "hide-idle" | "collapsed";
+type ProjectUiState = {
+  collapsed?: boolean;
+  hideIdle?: boolean;
+};
+
+const DEFAULT_PROJECT_UI_STATE: Required<ProjectUiState> = {
+  collapsed: false,
+  hideIdle: true
+};
 
 const sessionOpenActions: Record<
   OpenActionKey,
@@ -63,25 +63,30 @@ export function App() {
   const previousStatusesRef = useRef<Map<string, AirbarStatus>>(new Map());
   const [actionError, setActionError] = useState<string | null>(null);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
-  const [projectCollapseModes, setProjectCollapseModes] = useState<Record<string, ProjectCollapseMode>>(() => {
+  const [projectUiState, setProjectUiState] = useState<Record<string, ProjectUiState>>(() => {
     try {
-      const saved = window.localStorage.getItem(PROJECT_COLLAPSE_STORAGE_KEY);
-      return saved ? (JSON.parse(saved) as Record<string, ProjectCollapseMode>) : {};
+      const saved = window.localStorage.getItem(PROJECT_UI_STORAGE_KEY);
+      if (!saved) return {};
+      const parsed = JSON.parse(saved) as Record<string, ProjectUiState | "expanded" | "hide-idle" | "collapsed">;
+      return Object.fromEntries(
+        Object.entries(parsed).map(([workspace, value]) => {
+          if (typeof value === "string") {
+            return [
+              workspace,
+              {
+                collapsed: value === "collapsed",
+                hideIdle: value === "hide-idle"
+              } satisfies ProjectUiState
+            ];
+          }
+          return [workspace, value];
+        })
+      );
     } catch {
       return {};
     }
   });
   const { theme, setTheme } = useTheme();
-
-  const counts = useMemo(() => {
-    const next: Record<AirbarStatus, number> = { working: 0, done: 0, recent: 0, idle: 0 };
-    for (const project of snapshot?.projects || []) {
-      for (const session of project.sessions) {
-        next[session.status] += 1;
-      }
-    }
-    return next;
-  }, [snapshot]);
 
   const filteredProjects = snapshot?.projects || [];
 
@@ -125,8 +130,8 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(PROJECT_COLLAPSE_STORAGE_KEY, JSON.stringify(projectCollapseModes));
-  }, [projectCollapseModes]);
+    window.localStorage.setItem(PROJECT_UI_STORAGE_KEY, JSON.stringify(projectUiState));
+  }, [projectUiState]);
 
   async function handleToggleAlwaysOnTop() {
     const next = await window.airbar.setAlwaysOnTop(!alwaysOnTop);
@@ -168,32 +173,34 @@ export function App() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-auto p-3">
-        <section className="mb-3 grid grid-cols-4 gap-2">
-          {(Object.keys(statusLabels) as AirbarStatus[]).map((status) => (
-            <Card key={status} className="rounded-lg">
-              <div className="p-2">
-                <div className="text-xl font-bold leading-6">{counts[status]}</div>
-                <div className="text-[11px] text-muted-foreground">{statusLabels[status]}</div>
-              </div>
-            </Card>
-          ))}
-        </section>
-
+      <main className="flex-1 overflow-auto p-2.5">
         {snapshot?.error ? <div className="mb-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">{snapshot.error}</div> : null}
         {actionError ? <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">{actionError}</div> : null}
 
-        <section className="grid gap-2.5">
+        <section className="grid gap-1.5">
           {filteredProjects.map((project) => (
             <ProjectCard
               key={project.workspace}
               project={project}
               onOpenError={setActionError}
-              collapseMode={projectCollapseModes[project.workspace] ?? "expanded"}
-              onChangeCollapseMode={(nextMode) =>
-                setProjectCollapseModes((current) => ({
+              collapsed={projectUiState[project.workspace]?.collapsed ?? DEFAULT_PROJECT_UI_STATE.collapsed}
+              hideIdle={projectUiState[project.workspace]?.hideIdle ?? DEFAULT_PROJECT_UI_STATE.hideIdle}
+              onToggleCollapsed={() =>
+                setProjectUiState((current) => ({
                   ...current,
-                  [project.workspace]: nextMode
+                  [project.workspace]: {
+                    collapsed: !(current[project.workspace]?.collapsed ?? DEFAULT_PROJECT_UI_STATE.collapsed),
+                    hideIdle: current[project.workspace]?.hideIdle ?? DEFAULT_PROJECT_UI_STATE.hideIdle
+                  }
+                }))
+              }
+              onToggleHideIdle={() =>
+                setProjectUiState((current) => ({
+                  ...current,
+                  [project.workspace]: {
+                    collapsed: current[project.workspace]?.collapsed ?? DEFAULT_PROJECT_UI_STATE.collapsed,
+                    hideIdle: !(current[project.workspace]?.hideIdle ?? DEFAULT_PROJECT_UI_STATE.hideIdle)
+                  }
                 }))
               }
             />
@@ -214,21 +221,26 @@ export function App() {
 function ProjectCard({
   project,
   onOpenError,
-  collapseMode,
-  onChangeCollapseMode
+  collapsed,
+  hideIdle,
+  onToggleCollapsed,
+  onToggleHideIdle
 }: {
   project: AirbarProject;
   onOpenError: (message: string | null) => void;
-  collapseMode: ProjectCollapseMode;
-  onChangeCollapseMode: (nextMode: ProjectCollapseMode) => void;
+  collapsed: boolean;
+  hideIdle: boolean;
+  onToggleCollapsed: () => void;
+  onToggleHideIdle: () => void;
 }) {
   const visibleSessions = project.sessions.filter((session) => {
-    if (collapseMode === "collapsed") return false;
-    if (collapseMode === "hide-idle") return session.status !== "idle";
+    if (collapsed) return false;
+    if (hideIdle) return session.status !== "idle";
     return true;
   });
+  const workingCount = project.sessions.filter((session) => session.status === "working").length;
+  const doneCount = project.sessions.filter((session) => session.status === "done").length;
 
-  const hiddenIdleCount = project.sessions.filter((session) => session.status === "idle").length;
   const isProjectless = project.workspace === "Projectless";
 
   async function handleOpenProject() {
@@ -239,72 +251,65 @@ function ProjectCard({
     }
   }
 
-  function toggleProjectCollapsed() {
-    if (collapseMode === "collapsed") {
-      onChangeCollapseMode("expanded");
-      return;
-    }
-    onChangeCollapseMode("collapsed");
-  }
-
-  function toggleHideIdle() {
-    if (collapseMode === "hide-idle") {
-      onChangeCollapseMode("expanded");
-      return;
-    }
-    onChangeCollapseMode("hide-idle");
-  }
-
-  const collapseTitle = collapseMode === "collapsed" ? "Expand project" : "Collapse project";
+  const collapseTitle = collapsed ? "Expand project" : "Collapse project";
 
   return (
     <Card className="overflow-hidden">
-      <CardHeader className="min-h-7 px-2 py-0.5">
-        <div className="flex min-w-0 items-center gap-2">
+      <CardHeader className="min-h-6 px-2 py-0.5">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 pr-1">
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 shrink-0 rounded-sm"
+            className="h-5 w-5 shrink-0 rounded-sm"
             title={collapseTitle}
-            onClick={toggleProjectCollapsed}
+            onClick={onToggleCollapsed}
           >
-            {collapseMode === "collapsed" ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </Button>
           <div className="min-w-0">
-            <strong className="block truncate text-[12px] leading-4">{project.name}</strong>
+            <span className="block truncate text-[11px] font-medium leading-4">{project.name}</span>
           </div>
+          {collapsed ? (
+            <div className="flex shrink-0 items-center gap-1">
+              {workingCount > 0 ? (
+                <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-emerald-500 px-1 text-[9px] font-semibold leading-none text-white">
+                  {workingCount}
+                </span>
+              ) : null}
+              {doneCount > 0 ? (
+                <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-sky-500 px-1 text-[9px] font-semibold leading-none text-white">
+                  {doneCount}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <Button
-            variant={collapseMode === "hide-idle" ? "secondary" : "ghost"}
+            variant={hideIdle ? "secondary" : "ghost"}
             size="icon"
-            className="h-6 w-6 shrink-0 rounded-sm"
-            title={collapseMode === "hide-idle" ? "Show idle sessions" : "Hide idle sessions"}
-            onClick={toggleHideIdle}
+            className="h-5 w-5 shrink-0 rounded-sm"
+            title={hideIdle ? "Show idle sessions" : "Hide idle sessions"}
+            onClick={onToggleHideIdle}
           >
-            {collapseMode === "hide-idle" ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+            {hideIdle ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
           </Button>
           <Button
             variant="secondary"
             size="sm"
-            className="h-6 min-w-[30px] shrink-0 rounded-sm px-1.5"
+            className="h-5 min-w-[24px] shrink-0 rounded-sm px-1"
             title={isProjectless ? "No project folder available" : "Open project folder in Explorer"}
             onClick={handleOpenProject}
             disabled={isProjectless}
           >
-            <FolderOpen className="h-3.5 w-3.5" />
+            <FolderOpen className="h-3 w-3" />
           </Button>
         </div>
       </CardHeader>
       <CardContent>
-        {collapseMode === "collapsed" ? null : visibleSessions.map((session) => (
+        {collapsed ? null : visibleSessions.map((session) => (
           <SessionRow key={`${session.id}-${session.file}`} session={session} />
         ))}
-        {collapseMode === "hide-idle" && hiddenIdleCount > 0 ? (
-          <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-            {hiddenIdleCount} idle session{hiddenIdleCount > 1 ? "s" : ""} hidden
-          </div>
-        ) : null}
       </CardContent>
     </Card>
   );
@@ -316,7 +321,7 @@ function SessionRow({
   session: AirbarSession;
 }) {
   const command = session.recentCommands?.[0]?.command;
-  const message = session.lastMessage || command || session.lastType || "";
+  const message = session.lastMessage || command || "";
   const [actionError, setActionError] = useState<string | null>(null);
   const openAction = sessionOpenActions[SESSION_OPEN_ACTION];
   const OpenActionIcon = openAction.icon;
@@ -330,49 +335,41 @@ function SessionRow({
   }
 
   return (
-    <div className="grid grid-cols-[10px_minmax(0,1fr)] gap-2 border-b border-border px-2.5 py-2 last:border-b-0">
-      <span className={cn("mt-1.5 h-2 w-2 rounded-full", statusTone[session.status])} />
+    <div className="grid grid-cols-[8px_minmax(0,1fr)_20px] items-center gap-1.5 border-b border-border px-2 py-1 last:border-b-0">
+      <span className={cn("h-6 w-1 rounded-full self-center", statusTone[session.status])} />
       <div className="min-w-0">
-        <div className="flex min-w-0 items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <strong className="truncate text-[12px] leading-4" title={session.title}>
-              {session.title}
-            </strong>
-            <Badge>{session.status}</Badge>
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="h-6 min-w-[64px] shrink-0 rounded-sm px-2 text-[11px] font-semibold"
-            title={openAction.title(session)}
-            onClick={handleSessionAction}
-            disabled={openAction.disabled(session)}
-          >
-            <OpenActionIcon className="h-3.5 w-3.5" />
-            {openAction.label}
-          </Button>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 truncate text-[11px] leading-4" title={session.title}>
+            {session.title}
+          </span>
+          <span className="shrink-0 text-[9px] leading-4 text-muted-foreground" title={new Date(session.updatedAt).toLocaleString()}>
+            {formatElapsed(session.updatedAt)}
+          </span>
+          {message ? <span className="min-w-0 truncate text-[9px] leading-4 text-muted-foreground">{message}</span> : null}
         </div>
-        <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          {session.status === "done" ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
-          <span>{formatRelative(session.updatedAt)}</span>
-          <span>{session.id.slice(0, 8)}</span>
-          <span className="truncate">{session.lastType}</span>
-        </div>
-        {message ? <div className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{message}</div> : null}
-        {actionError ? <div className="mt-2 text-[11px] text-amber-300">{actionError}</div> : null}
+        {actionError ? <div className="mt-0.5 text-[9px] text-amber-300">{actionError}</div> : null}
       </div>
+      <Button
+        variant="secondary"
+        size="icon"
+        className="h-5 w-5 shrink-0 rounded-sm self-center"
+        title={openAction.title(session)}
+        onClick={handleSessionAction}
+        disabled={openAction.disabled(session)}
+      >
+        <OpenActionIcon className="h-3 w-3" />
+      </Button>
     </div>
   );
 }
 
-function formatRelative(isoDate: string) {
+function formatElapsed(isoDate: string) {
   const then = new Date(isoDate).getTime();
   const diff = Math.max(0, Date.now() - then);
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "<1m";
+  if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
 }

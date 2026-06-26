@@ -64,19 +64,29 @@ function quoteCmdArg(value) {
   return `"${String(value).replace(/"/g, '\\"')}"`;
 }
 
-function createWindow() {
+function getTopCenterPosition(windowWidth, windowHeight) {
   const display = screen.getPrimaryDisplay();
-  const width = 420;
+  const { x, y, width, height } = display.workArea;
+  const nextX = Math.round(x + (width - windowWidth) / 2);
+  const nextY = Math.max(y + 24, y);
+  return {
+    x: nextX,
+    y: nextY,
+    maxHeight: Math.max(420, height - 48)
+  };
+}
+
+function createWindow() {
+  const width = 630;
   const height = 620;
-  const x = Math.max(display.workArea.x, display.workArea.x + display.workArea.width - width - 24);
-  const y = Math.max(display.workArea.y, display.workArea.y + 56);
+  const position = getTopCenterPosition(width, height);
 
   mainWindow = new BrowserWindow({
     width,
-    height,
-    x,
-    y,
-    minWidth: 340,
+    height: Math.min(height, position.maxHeight),
+    x: position.x,
+    y: position.y,
+    minWidth: 480,
     minHeight: 420,
     frame: false,
     transparent: false,

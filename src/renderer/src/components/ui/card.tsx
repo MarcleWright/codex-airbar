@@ -6,7 +6,7 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
 }
 
 export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("flex min-h-8 items-center justify-between gap-2 border-b border-border px-2 py-1", className)} {...props} />;
+  return <div className={cn("flex min-h-7 items-center justify-between gap-1.5 border-b border-border px-2 py-0.5", className)} {...props} />;
 }
 
 export function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

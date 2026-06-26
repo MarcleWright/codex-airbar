@@ -6,35 +6,34 @@ Codex Airbar currently has one floating monitor window.
 
 ## Layout Structure
 
-- Title bar: app name, status summary, refresh/log/minimize/close controls.
-- Status strip: counts for `working`, `done`, `recent`, and `idle`.
-- Toolbar: status filter.
+- Title bar: app name, always-on-top toggle, theme toggle, refresh/log/minimize/close controls.
 - Project list: project cards grouped by workspace.
-- Project header: title, collapse controls, and Explorer button.
-- Session rows: status dot, title, badge, updated time, id prefix, last event type, short message, and a Codex `Open` action.
+- Project header: title, independent collapse and idle-visibility controls, collapsed-state working/done count capsules, and Explorer button.
+- Session rows: vertical status bar, title, elapsed time, inline context snippet, and an icon-only Codex action.
 
 ## Key Visible Behaviors
 
 - Window is frameless and always on top.
 - Title region is draggable.
 - Project and session text truncates to avoid layout overflow.
-- Filtering updates the current list without changing underlying data.
 - Notifications are sent when a session changes from `working` to `done`.
 - The title bar includes a theme toggle for light/dark mode.
 - UI primitives follow a shadcn-style source-owned pattern and consume shared theme tokens.
-- Project cards support two compacting modes:
-- `hide-idle`: hide idle sessions but keep active and recent ones visible.
+- Project cards support two independent compacting controls:
+- `hideIdle`: hide idle sessions while keeping non-idle sessions visible.
 - `collapsed`: collapse the whole project and leave only the header row visible.
-- Project compacting modes persist in `localStorage`.
+- Project compacting state persists in `localStorage`.
+- Idle sessions are hidden by default until the user enables them for a specific project.
 - Project headers expose a folder button that opens the project workspace in Explorer.
 - Project visibility uses paired `EyeOff` / `Eye` icons instead of color-only state.
 - Buttons stay visually transparent by default and use pressed-state color only as click feedback.
+- Scrollbars and future range inputs use slim custom styling so the UI reads as a compact utility rather than a stock system panel.
 
 ## Important UI States
 
 - Loading: initial summary shows that local sessions are being read.
 - Normal: project cards and session rows are visible.
-- Empty: no matching sessions or no local Codex sessions found.
+- Empty: no local Codex sessions found.
 - Error: snapshot errors appear in an error box while the app remains open.
 
 ## Theme Foundation
