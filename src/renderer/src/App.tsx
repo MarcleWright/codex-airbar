@@ -1,14 +1,17 @@
-import { CheckCircle2, ChevronDown, ChevronRight, Circle, ExternalLink, Eye, EyeOff, FileText, FolderOpen, Minus, Moon, Pin, RefreshCw, Sun, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Circle, ExternalLink, Eye, EyeOff, FileText, FolderOpen, Minus, Moon, Pin, PinOff, RefreshCw, Sun, Terminal, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "./theme-provider";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardHeader } from "./components/ui/card";
-import { Select } from "./components/ui/select";
 import { cn } from "./lib/utils";
 
 const POLL_MS = 5000;
 const PROJECT_COLLAPSE_STORAGE_KEY = "codex-airbar-project-collapse";
+
+type OpenActionKey = "openWorkspace" | "resumeSession";
+
+const SESSION_OPEN_ACTION: OpenActionKey = "resumeSession";
 
 const statusLabels: Record<AirbarStatus, string> = {
   working: "Working",
@@ -26,10 +29,38 @@ const statusTone: Record<AirbarStatus, string> = {
 
 type ProjectCollapseMode = "expanded" | "hide-idle" | "collapsed";
 
+const sessionOpenActions: Record<
+  OpenActionKey,
+  {
+    label: string;
+    icon: typeof ExternalLink;
+    title: (session: AirbarSession) => string;
+    disabled: (session: AirbarSession) => boolean;
+    run: (session: AirbarSession) => Promise<{ ok: boolean; error?: string }>;
+    fallbackError: string;
+  }
+> = {
+  openWorkspace: {
+    label: "Open",
+    icon: ExternalLink,
+    title: (session) => (session.workspace === "Projectless" ? "No project workspace available" : "Open project in Codex"),
+    disabled: (session) => session.workspace === "Projectless",
+    run: (session) => window.airbar.openProject(session.workspace),
+    fallbackError: "Failed to open the project in Codex."
+  },
+  resumeSession: {
+    label: "Resume",
+    icon: Terminal,
+    title: (session) => (session.id ? "Resume this Codex session" : "No session id available"),
+    disabled: (session) => !session.id,
+    run: (session) => window.airbar.resumeSession(session.id, session.workspace),
+    fallbackError: "Failed to resume the Codex session."
+  }
+};
+
 export function App() {
   const [snapshot, setSnapshot] = useState<AirbarSnapshot | null>(null);
   const previousStatusesRef = useRef<Map<string, AirbarStatus>>(new Map());
-  const [statusFilter, setStatusFilter] = useState<AirbarStatus | "all">("all");
   const [actionError, setActionError] = useState<string | null>(null);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const [projectCollapseModes, setProjectCollapseModes] = useState<Record<string, ProjectCollapseMode>>(() => {
@@ -52,14 +83,7 @@ export function App() {
     return next;
   }, [snapshot]);
 
-  const filteredProjects = useMemo(() => {
-    return (snapshot?.projects || [])
-      .map((project) => ({
-        ...project,
-        sessions: project.sessions.filter((session) => statusFilter === "all" || session.status === statusFilter)
-      }))
-      .filter((project) => project.sessions.length > 0);
-  }, [snapshot?.projects, statusFilter]);
+  const filteredProjects = snapshot?.projects || [];
 
   async function poll() {
     try {
@@ -109,43 +133,37 @@ export function App() {
     setAlwaysOnTop(next);
   }
 
-  const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
-
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
-      <header className="flex h-[68px] items-center border-b border-border bg-background/95">
-        <div className="drag-region flex h-full min-w-0 flex-1 items-center px-3">
-          <div className="mr-3 h-7 w-3 rounded-full bg-gradient-to-b from-emerald-300 to-sky-400 shadow-[0_0_20px_rgba(56,189,248,0.38)]" />
-          <div className="min-w-0">
-            <h1 className="truncate text-sm font-semibold">Codex Airbar</h1>
-            <p className="truncate text-xs text-muted-foreground">
-              {total} sessions across {snapshot?.projects?.length || 0} projects
-            </p>
-          </div>
+      <header className="flex h-8 items-center border-b border-border bg-background/95">
+        <div className="drag-region flex h-full min-w-0 flex-1 items-center gap-1.5 px-2">
+          <div className="h-4 w-1 rounded-full bg-gradient-to-b from-emerald-300 to-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.28)]" />
+          <h1 className="truncate text-[12px] font-semibold leading-none">Codex Airbar</h1>
         </div>
-        <div className="no-drag flex items-center gap-1.5 pr-2">
+        <div className="no-drag flex items-center gap-0.5 pr-1">
           <Button
-            variant={alwaysOnTop ? "secondary" : "ghost"}
+            variant="ghost"
             size="icon"
             title={alwaysOnTop ? "Disable always on top" : "Enable always on top"}
+            className="h-6 w-6 rounded-sm"
             onClick={handleToggleAlwaysOnTop}
           >
-            <Pin className="h-4 w-4" />
+            {alwaysOnTop ? <Pin className="h-3.5 w-3.5 fill-current" /> : <PinOff className="h-3.5 w-3.5" />}
           </Button>
-          <Button variant="ghost" size="icon" title="Toggle theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Toggle theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+            {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
           </Button>
-          <Button variant="ghost" size="icon" title="Refresh" onClick={poll}>
-            <RefreshCw className="h-4 w-4" />
+          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Refresh" onClick={poll}>
+            <RefreshCw className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" title="Open logs" onClick={() => window.airbar.openLogs()}>
-            <FileText className="h-4 w-4" />
+          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Open logs" onClick={() => window.airbar.openLogs()}>
+            <FileText className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" title="Minimize" onClick={() => window.airbar.minimize()}>
-            <Minus className="h-4 w-4" />
+          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Minimize" onClick={() => window.airbar.minimize()}>
+            <Minus className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" title="Close" onClick={() => window.airbar.close()}>
-            <X className="h-4 w-4" />
+          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Close" onClick={() => window.airbar.close()}>
+            <X className="h-3.5 w-3.5" />
           </Button>
         </div>
       </header>
@@ -160,16 +178,6 @@ export function App() {
               </div>
             </Card>
           ))}
-        </section>
-
-        <section className="mb-3">
-          <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as AirbarStatus | "all")}>
-            <option value="all">All statuses</option>
-            <option value="working">Working</option>
-            <option value="done">Done</option>
-            <option value="recent">Recent</option>
-            <option value="idle">Idle</option>
-          </Select>
         </section>
 
         {snapshot?.error ? <div className="mb-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">{snapshot.error}</div> : null}
@@ -231,56 +239,55 @@ function ProjectCard({
     }
   }
 
-  function cycleCollapseMode() {
-    if (collapseMode === "expanded") {
-      onChangeCollapseMode("hide-idle");
+  function toggleProjectCollapsed() {
+    if (collapseMode === "collapsed") {
+      onChangeCollapseMode("expanded");
       return;
     }
-    if (collapseMode === "hide-idle") {
-      onChangeCollapseMode("collapsed");
-      return;
-    }
-    onChangeCollapseMode("expanded");
+    onChangeCollapseMode("collapsed");
   }
 
-  const collapseTitle =
-    collapseMode === "expanded"
-      ? "Hide idle sessions"
-      : collapseMode === "hide-idle"
-        ? "Collapse project"
-        : "Expand project";
+  function toggleHideIdle() {
+    if (collapseMode === "hide-idle") {
+      onChangeCollapseMode("expanded");
+      return;
+    }
+    onChangeCollapseMode("hide-idle");
+  }
+
+  const collapseTitle = collapseMode === "collapsed" ? "Expand project" : "Collapse project";
 
   return (
     <Card className="overflow-hidden">
-      <CardHeader>
+      <CardHeader className="min-h-7 px-2 py-0.5">
         <div className="flex min-w-0 items-center gap-2">
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 shrink-0"
+            className="h-6 w-6 shrink-0 rounded-sm"
             title={collapseTitle}
-            onClick={cycleCollapseMode}
+            onClick={toggleProjectCollapsed}
           >
-            {collapseMode === "collapsed" ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {collapseMode === "collapsed" ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </Button>
           <div className="min-w-0">
-            <strong className="block truncate text-sm">{project.name}</strong>
+            <strong className="block truncate text-[12px] leading-4">{project.name}</strong>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
           <Button
             variant={collapseMode === "hide-idle" ? "secondary" : "ghost"}
             size="icon"
-            className="h-7 w-7 shrink-0"
+            className="h-6 w-6 shrink-0 rounded-sm"
             title={collapseMode === "hide-idle" ? "Show idle sessions" : "Hide idle sessions"}
-            onClick={() => onChangeCollapseMode(collapseMode === "hide-idle" ? "expanded" : "hide-idle")}
+            onClick={toggleHideIdle}
           >
-            {collapseMode === "hide-idle" ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+            {collapseMode === "hide-idle" ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
           </Button>
           <Button
             variant="secondary"
             size="sm"
-            className="h-7 min-w-[36px] shrink-0 px-2.5 text-[11px] font-semibold"
+            className="h-6 min-w-[30px] shrink-0 rounded-sm px-1.5"
             title={isProjectless ? "No project folder available" : "Open project folder in Explorer"}
             onClick={handleOpenProject}
             disabled={isProjectless}
@@ -311,22 +318,24 @@ function SessionRow({
   const command = session.recentCommands?.[0]?.command;
   const message = session.lastMessage || command || session.lastType || "";
   const [actionError, setActionError] = useState<string | null>(null);
+  const openAction = sessionOpenActions[SESSION_OPEN_ACTION];
+  const OpenActionIcon = openAction.icon;
 
   async function handleSessionAction() {
     setActionError(null);
-    const result = await window.airbar.openProject(session.workspace);
+    const result = await openAction.run(session);
     if (!result.ok) {
-      setActionError(result.error || "Failed to open the project in Codex.");
+      setActionError(result.error || openAction.fallbackError);
     }
   }
 
   return (
-    <div className="grid grid-cols-[12px_minmax(0,1fr)] gap-2.5 border-b border-border px-3 py-2.5 last:border-b-0">
+    <div className="grid grid-cols-[10px_minmax(0,1fr)] gap-2 border-b border-border px-2.5 py-2 last:border-b-0">
       <span className={cn("mt-1.5 h-2 w-2 rounded-full", statusTone[session.status])} />
       <div className="min-w-0">
         <div className="flex min-w-0 items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
-            <strong className="truncate text-sm" title={session.title}>
+            <strong className="truncate text-[12px] leading-4" title={session.title}>
               {session.title}
             </strong>
             <Badge>{session.status}</Badge>
@@ -334,13 +343,13 @@ function SessionRow({
           <Button
             variant="secondary"
             size="sm"
-            className="h-7 min-w-[72px] shrink-0 px-2.5 text-[11px] font-semibold"
-            title={session.workspace === "Projectless" ? "No project workspace available" : "Open project in Codex"}
+            className="h-6 min-w-[64px] shrink-0 rounded-sm px-2 text-[11px] font-semibold"
+            title={openAction.title(session)}
             onClick={handleSessionAction}
-            disabled={session.workspace === "Projectless"}
+            disabled={openAction.disabled(session)}
           >
-            <ExternalLink className="h-3.5 w-3.5" />
-            Open
+            <OpenActionIcon className="h-3.5 w-3.5" />
+            {openAction.label}
           </Button>
         </div>
         <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">

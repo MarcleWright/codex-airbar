@@ -39,6 +39,7 @@ interface Window {
   airbar: {
     getSnapshot: () => Promise<AirbarSnapshot>;
     openProject: (workspacePath: string) => Promise<{ ok: boolean; error?: string }>;
+    resumeSession: (sessionId: string, workspacePath?: string) => Promise<{ ok: boolean; error?: string }>;
     openProjectFolder: (workspacePath: string) => Promise<{ ok: boolean; error?: string }>;
     minimize: () => Promise<void>;
     getAlwaysOnTop: () => Promise<boolean>;

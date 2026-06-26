@@ -11,11 +11,57 @@ const logPath = path.join(app.getPath("userData"), "codex-airbar.log");
 const appIconPath = path.join(__dirname, "..", "assets", process.platform === "win32" ? "icon.ico" : "icon.png");
 let mainWindow = null;
 let isPinnedToTop = true;
+let resolvedCodexPath = null;
 
 function log(message, error) {
   const detail = error ? `\n${error.stack || error.message || String(error)}` : "";
   fs.mkdirSync(path.dirname(logPath), { recursive: true });
   fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${message}${detail}\n`, "utf8");
+}
+
+function safeStat(filePath) {
+  try {
+    return fs.statSync(filePath);
+  } catch {
+    return null;
+  }
+}
+
+function findCodexExecutable() {
+  if (resolvedCodexPath) return resolvedCodexPath;
+
+  const candidates = [];
+  if (process.env.CODEX_AIRBAR_CODEX_PATH) {
+    candidates.push(process.env.CODEX_AIRBAR_CODEX_PATH);
+  }
+
+  if (process.platform === "win32") {
+    const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
+    const desktopBin = path.join(localAppData, "OpenAI", "Codex", "bin");
+    try {
+      const versionedBins = fs
+        .readdirSync(desktopBin, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => path.join(desktopBin, entry.name, "codex.exe"))
+        .filter((candidate) => safeStat(candidate))
+        .sort((a, b) => safeStat(b).mtimeMs - safeStat(a).mtimeMs);
+      candidates.push(...versionedBins);
+    } catch {
+      // Desktop installs are optional; PATH remains the final fallback.
+    }
+    candidates.push(
+      path.join(localAppData, "OpenAI", "Codex", "bin", "codex.exe"),
+      path.join(localAppData, "Programs", "OpenAI", "Codex", "bin", "codex.exe")
+    );
+  }
+
+  resolvedCodexPath = candidates.find((candidate) => safeStat(candidate)) || "codex";
+  log(`Using Codex executable: ${resolvedCodexPath}`);
+  return resolvedCodexPath;
+}
+
+function quoteCmdArg(value) {
+  return `"${String(value).replace(/"/g, '\\"')}"`;
 }
 
 function createWindow() {
@@ -134,10 +180,11 @@ ipcMain.handle("codex:openProject", async (_event, workspacePath) => {
   }
 
   return new Promise((resolve) => {
-    const codex = spawn("codex", ["app", workspacePath], {
+    const codexPath = findCodexExecutable();
+    const codex = spawn(codexPath, ["app", workspacePath], {
       detached: true,
       stdio: "ignore",
-      shell: process.platform === "win32"
+      shell: process.platform === "win32" && codexPath === "codex"
     });
 
     codex.once("error", (error) => {
@@ -155,7 +202,7 @@ ipcMain.handle("codex:openProject", async (_event, workspacePath) => {
   });
 });
 
-ipcMain.handle("codex:resumeSession", async (_event, sessionId) => {
+ipcMain.handle("codex:resumeSession", async (_event, sessionId, workspacePath) => {
   if (typeof sessionId !== "string" || sessionId.trim() === "") {
     return {
       ok: false,
@@ -164,13 +211,19 @@ ipcMain.handle("codex:resumeSession", async (_event, sessionId) => {
   }
 
   return new Promise((resolve) => {
+    const codexPath = findCodexExecutable();
+    const resumeArgs = ["resume"];
+    if (typeof workspacePath === "string" && workspacePath.trim() !== "" && workspacePath !== "Projectless") {
+      resumeArgs.push("-C", workspacePath);
+    }
+    resumeArgs.push(sessionId);
     const resumeProcess =
       process.platform === "win32"
-        ? spawn("cmd.exe", ["/c", "start", "Codex Session", "cmd.exe", "/k", "codex", "resume", sessionId], {
+        ? spawn("cmd.exe", ["/d", "/s", "/c", `start "Codex Session" cmd.exe /k ${[codexPath, ...resumeArgs].map(quoteCmdArg).join(" ")}`], {
             detached: true,
             stdio: "ignore"
           })
-        : spawn("codex", ["resume", sessionId], {
+        : spawn(codexPath, resumeArgs, {
             detached: true,
             stdio: "inherit"
           });
