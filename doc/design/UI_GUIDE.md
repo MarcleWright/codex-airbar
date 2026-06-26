@@ -25,7 +25,8 @@ Codex Airbar currently has one floating monitor window.
 - Project compacting state persists in `localStorage`.
 - Idle sessions are hidden by default until the user enables them for a specific project.
 - Project headers expose a folder button that opens the project workspace in Explorer.
-- Project visibility uses paired `EyeOff` / `Eye` icons instead of color-only state.
+- Stateful controls show the current state in their icon; tooltips may describe the next click action.
+- Project visibility uses `EyeOff` when idle sessions are hidden and `Eye` when idle sessions are visible.
 - Buttons stay visually transparent by default and use pressed-state color only as click feedback.
 - Pin and magnet controls use filled icons to indicate active state.
 - Status colors use violet for `working`, Codex-style blue for `done`, and muted gray for `idle`.

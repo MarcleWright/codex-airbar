@@ -192,8 +192,14 @@ export function App() {
           >
             {alwaysOnTop ? <Pin className="h-3.5 w-3.5 fill-current" /> : <PinOff className="h-3.5 w-3.5" />}
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Toggle theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-            {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 rounded-sm"
+            title={theme === "dark" ? "Dark theme active" : "Light theme active"}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            {theme === "dark" ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
           </Button>
           <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Refresh" onClick={poll}>
             <RefreshCw className="h-3.5 w-3.5" />
@@ -356,13 +362,13 @@ function ProjectCard({
             </Button>
           ) : null}
           <Button
-            variant={hideIdle ? "secondary" : "ghost"}
+            variant="ghost"
             size="icon"
             className="h-5 w-5 shrink-0 rounded-sm"
             title={hideIdle ? "Show idle sessions" : "Hide idle sessions"}
             onClick={onToggleHideIdle}
           >
-            {hideIdle ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+            {hideIdle ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
           </Button>
           <Button
             variant="secondary"
