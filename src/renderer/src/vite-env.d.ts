@@ -44,6 +44,7 @@ interface Window {
     minimize: () => Promise<void>;
     snapTopCenter: () => Promise<boolean>;
     isTopCenterSnapped: () => Promise<boolean>;
+    setContentHeight: (height: number) => Promise<boolean>;
     onSnapTopCenterStateChanged: (callback: (value: boolean) => void) => () => void;
     getAlwaysOnTop: () => Promise<boolean>;
     setAlwaysOnTop: (value: boolean) => Promise<boolean>;

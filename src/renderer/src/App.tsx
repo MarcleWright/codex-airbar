@@ -8,6 +8,14 @@ import { cn } from "./lib/utils";
 const POLL_MS = 5000;
 const PROJECT_UI_STORAGE_KEY = "codex-airbar-project-ui";
 const CLEARED_DONE_STORAGE_KEY = "codex-airbar-cleared-done";
+const AUTO_HEIGHT_PROJECT_LIMIT = 4;
+const AUTO_HEIGHT_TITLE_BAR = 32;
+const AUTO_HEIGHT_CONTENT_PADDING_Y = 20;
+const AUTO_HEIGHT_PROJECT_HEADER = 26;
+const AUTO_HEIGHT_SESSION_ROW = 28;
+const AUTO_HEIGHT_PROJECT_GAP = 6;
+const AUTO_HEIGHT_EMPTY_STATE = 82;
+const AUTO_HEIGHT_ALERT = 42;
 
 type OpenActionKey = "openWorkspace" | "resumeSession";
 
@@ -113,6 +121,17 @@ export function App() {
     });
   }, [clearedDoneSessions, snapshot?.projects]);
 
+  const autoWindowHeight = useMemo(() => {
+    return calculateAutoWindowHeight({
+      projects: filteredProjects,
+      projectUiState,
+      clearedDoneSessions,
+      hasError: Boolean(snapshot?.error),
+      hasActionError: Boolean(actionError),
+      isEmpty: !snapshot?.error && filteredProjects.length === 0
+    });
+  }, [actionError, clearedDoneSessions, filteredProjects, projectUiState, snapshot?.error]);
+
   async function poll() {
     try {
       const next = await window.airbar.getSnapshot();
@@ -164,6 +183,10 @@ export function App() {
   useEffect(() => {
     window.localStorage.setItem(CLEARED_DONE_STORAGE_KEY, JSON.stringify(clearedDoneSessions));
   }, [clearedDoneSessions]);
+
+  useEffect(() => {
+    window.airbar.setContentHeight(autoWindowHeight).catch(() => null);
+  }, [autoWindowHeight]);
 
   async function handleToggleAlwaysOnTop() {
     const next = await window.airbar.setAlwaysOnTop(!alwaysOnTop);
@@ -280,6 +303,49 @@ export function App() {
       </main>
     </div>
   );
+}
+
+function calculateVisibleSessionCount(
+  project: AirbarProject,
+  uiState: ProjectUiState | undefined,
+  clearedDoneSessions: Record<string, string>
+) {
+  const collapsed = uiState?.collapsed ?? DEFAULT_PROJECT_UI_STATE.collapsed;
+  if (collapsed) return 0;
+
+  const hideIdle = uiState?.hideIdle ?? DEFAULT_PROJECT_UI_STATE.hideIdle;
+  return project.sessions.filter((session) => {
+    if (session.status === "done" && clearedDoneSessions[session.id] === session.updatedAt) return false;
+    if (hideIdle && session.status === "idle") return false;
+    return true;
+  }).length;
+}
+
+function calculateAutoWindowHeight({
+  projects,
+  projectUiState,
+  clearedDoneSessions,
+  hasError,
+  hasActionError,
+  isEmpty
+}: {
+  projects: AirbarProject[];
+  projectUiState: Record<string, ProjectUiState>;
+  clearedDoneSessions: Record<string, string>;
+  hasError: boolean;
+  hasActionError: boolean;
+  isEmpty: boolean;
+}) {
+  const visibleProjects = projects.slice(0, AUTO_HEIGHT_PROJECT_LIMIT);
+  const projectHeight = visibleProjects.reduce((total, project) => {
+    const sessionCount = calculateVisibleSessionCount(project, projectUiState[project.workspace], clearedDoneSessions);
+    return total + AUTO_HEIGHT_PROJECT_HEADER + sessionCount * AUTO_HEIGHT_SESSION_ROW;
+  }, 0);
+  const projectGaps = Math.max(0, visibleProjects.length - 1) * AUTO_HEIGHT_PROJECT_GAP;
+  const alertHeight = (hasError ? AUTO_HEIGHT_ALERT : 0) + (hasActionError ? AUTO_HEIGHT_ALERT : 0);
+  const bodyHeight = isEmpty ? AUTO_HEIGHT_EMPTY_STATE : projectHeight + projectGaps;
+
+  return AUTO_HEIGHT_TITLE_BAR + AUTO_HEIGHT_CONTENT_PADDING_Y + alertHeight + bodyHeight;
 }
 
 function ProjectCard({

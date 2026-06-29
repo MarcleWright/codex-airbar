@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("airbar", {
   minimize: () => ipcRenderer.invoke("app:minimize"),
   snapTopCenter: () => ipcRenderer.invoke("app:snapTopCenter"),
   isTopCenterSnapped: () => ipcRenderer.invoke("app:isTopCenterSnapped"),
+  setContentHeight: (height) => ipcRenderer.invoke("app:setContentHeight", height),
   onSnapTopCenterStateChanged: (callback) => {
     const listener = (_event, value) => callback(Boolean(value));
     ipcRenderer.on("app:snapTopCenterStateChanged", listener);

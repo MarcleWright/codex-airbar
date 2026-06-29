@@ -87,6 +87,33 @@ function snapWindowToTopCenter(targetWindow) {
   emitSnapTopCenterState(targetWindow);
 }
 
+function setWindowContentHeight(targetWindow, nextHeight) {
+  if (!targetWindow || targetWindow.isDestroyed()) return false;
+  const parsedHeight = Number(nextHeight);
+  if (!Number.isFinite(parsedHeight)) return false;
+
+  const wasTopCenterSnapped = isTopCenterSnapped(targetWindow);
+  const bounds = targetWindow.getBounds();
+  const display = screen.getDisplayMatching(bounds);
+  const maxHeight = Math.max(180, display.workArea.height - 48);
+  const height = Math.max(150, Math.min(Math.round(parsedHeight), maxHeight));
+  if (Math.abs(bounds.height - height) <= 1) return wasTopCenterSnapped;
+
+  const nextBounds = {
+    ...bounds,
+    height
+  };
+  if (wasTopCenterSnapped) {
+    const position = getTopCenterPosition(bounds.width, height);
+    nextBounds.x = position.x;
+    nextBounds.y = position.y;
+  }
+
+  targetWindow.setBounds(nextBounds);
+  emitSnapTopCenterState(targetWindow);
+  return isTopCenterSnapped(targetWindow);
+}
+
 function isTopCenterSnapped(targetWindow) {
   if (!targetWindow || targetWindow.isDestroyed()) return false;
   const [windowWidth, windowHeight] = targetWindow.getSize();
@@ -254,6 +281,10 @@ ipcMain.handle("app:snapTopCenter", () => {
 
 ipcMain.handle("app:isTopCenterSnapped", () => {
   return isTopCenterSnapped(mainWindow);
+});
+
+ipcMain.handle("app:setContentHeight", (_event, height) => {
+  return setWindowContentHeight(mainWindow, height);
 });
 
 ipcMain.handle("app:getAlwaysOnTop", () => {
