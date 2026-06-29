@@ -185,6 +185,7 @@ function summarizeLastEvents(filePath) {
     hasFunctionCall,
     hasFunctionOutput,
     hasPendingUserMessage: hasPendingUserMessage(events),
+    hasTurnAborted: tailEvents.some((event) => event?.payload?.type === "turn_aborted"),
     hasTaskComplete: tailEvents.some((event) => event?.payload?.type === "task_complete"),
     hasFinalAnswer: tailEvents.some((event) => event?.payload?.phase === "final_answer"),
     hasCommentary: tailEvents.some((event) => event?.payload?.phase === "commentary"),
@@ -439,6 +440,9 @@ function workspaceForThread(threadId, globalState, processInfo, eventSummary) {
 function statusForSession(file, eventSummary, processInfo) {
   const now = Date.now();
   const ageMs = now - file.mtimeMs;
+  if (eventSummary?.hasTurnAborted) {
+    return ageMs < DONE_WINDOW_MS ? "done" : "idle";
+  }
   if (eventSummary?.hasPendingUserMessage) {
     return ageMs < DONE_WINDOW_MS ? "working" : "idle";
   }

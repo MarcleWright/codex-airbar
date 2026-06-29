@@ -9,6 +9,7 @@ const shouldOpenDevTools = process.env.CODEX_AIRBAR_DEVTOOLS === "1";
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 const logPath = path.join(app.getPath("userData"), "codex-airbar.log");
 const appIconPath = path.join(__dirname, "..", "assets", process.platform === "win32" ? "icon.ico" : "icon.png");
+const TITLE_BAR_HEIGHT = 32;
 let mainWindow = null;
 let isPinnedToTop = true;
 let resolvedCodexPath = null;
@@ -96,7 +97,8 @@ function setWindowContentHeight(targetWindow, nextHeight) {
   const bounds = targetWindow.getBounds();
   const display = screen.getDisplayMatching(bounds);
   const maxHeight = Math.max(180, display.workArea.height - 48);
-  const height = Math.max(150, Math.min(Math.round(parsedHeight), maxHeight));
+  const height = Math.max(TITLE_BAR_HEIGHT, Math.min(Math.round(parsedHeight), maxHeight));
+  targetWindow.setMinimumSize(480, height <= TITLE_BAR_HEIGHT ? TITLE_BAR_HEIGHT : 180);
   if (Math.abs(bounds.height - height) <= 1) return wasTopCenterSnapped;
 
   const nextBounds = {
@@ -173,7 +175,7 @@ function createWindow() {
     x: position.x,
     y: position.y,
     minWidth: 480,
-    minHeight: 180,
+    minHeight: TITLE_BAR_HEIGHT,
     frame: false,
     transparent: false,
     alwaysOnTop: isPinnedToTop,

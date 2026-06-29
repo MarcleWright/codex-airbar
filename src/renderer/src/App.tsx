@@ -72,6 +72,7 @@ export function App() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const [topCenterSnapped, setTopCenterSnapped] = useState(false);
+  const [isBarCollapsed, setIsBarCollapsed] = useState(false);
   const [clearedDoneSessions, setClearedDoneSessions] = useState<Record<string, string>>(() => {
     try {
       const saved = window.localStorage.getItem(CLEARED_DONE_STORAGE_KEY);
@@ -132,6 +133,10 @@ export function App() {
     });
   }, [actionError, clearedDoneSessions, filteredProjects, projectUiState, snapshot?.error]);
 
+  const statusSummary = useMemo(() => {
+    return calculateStatusSummary(filteredProjects, clearedDoneSessions);
+  }, [clearedDoneSessions, filteredProjects]);
+
   async function poll() {
     try {
       const next = await window.airbar.getSnapshot();
@@ -185,8 +190,8 @@ export function App() {
   }, [clearedDoneSessions]);
 
   useEffect(() => {
-    window.airbar.setContentHeight(autoWindowHeight).catch(() => null);
-  }, [autoWindowHeight]);
+    window.airbar.setContentHeight(isBarCollapsed ? AUTO_HEIGHT_TITLE_BAR : autoWindowHeight).catch(() => null);
+  }, [autoWindowHeight, isBarCollapsed]);
 
   async function handleToggleAlwaysOnTop() {
     const next = await window.airbar.setAlwaysOnTop(!alwaysOnTop);
@@ -202,43 +207,31 @@ export function App() {
     <div className="airbar-shell flex h-screen flex-col overflow-hidden bg-background text-foreground">
       <header className="flex h-8 items-center border-b border-border bg-background/95">
         <div className="drag-region flex h-full min-w-0 flex-1 items-center gap-1.5 px-2">
-          <div className="h-4 w-1 rounded-full bg-gradient-to-b from-emerald-300 to-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.28)]" />
-          <h1 className="truncate text-[12px] font-semibold leading-none">Codex Airbar</h1>
+          <button
+            type="button"
+            className="no-drag flex h-5 min-w-0 items-center gap-1.5 rounded-sm border border-border/70 bg-muted/35 px-1.5 text-left hover:bg-muted/60 active:bg-muted"
+            title={isBarCollapsed ? "Restore Airbar" : "Collapse to title bar"}
+            onClick={() => setIsBarCollapsed((current) => !current)}
+          >
+            <div className="h-4 w-1 rounded-full bg-gradient-to-b from-emerald-300 to-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.28)]" />
+            <h1 className="truncate text-[12px] font-semibold leading-none">Codex Airbar</h1>
+          </button>
+          {isBarCollapsed ? (
+            <StatusSummaryDots summary={statusSummary} onRestore={() => setIsBarCollapsed(false)} />
+          ) : (
+            <TopBarToolset
+              alwaysOnTop={alwaysOnTop}
+              topCenterSnapped={topCenterSnapped}
+              theme={theme}
+              onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
+              onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
+              onSnapTopCenter={handleSnapTopCenter}
+              onRefresh={poll}
+              onOpenLogs={() => window.airbar.openLogs()}
+            />
+          )}
         </div>
         <div className="no-drag flex items-center gap-0.5 pr-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            title={alwaysOnTop ? "Disable always on top" : "Enable always on top"}
-            className="h-6 w-6 rounded-sm"
-            onClick={handleToggleAlwaysOnTop}
-          >
-            {alwaysOnTop ? <Pin className="h-3.5 w-3.5 fill-current" /> : <PinOff className="h-3.5 w-3.5" />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 rounded-sm"
-            title={theme === "dark" ? "Dark theme active" : "Light theme active"}
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          >
-            {theme === "dark" ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 rounded-sm"
-            title={topCenterSnapped ? "Snapped to top center" : "Snap to top center"}
-            onClick={handleSnapTopCenter}
-          >
-            <Magnet className={cn("h-3.5 w-3.5", topCenterSnapped ? "fill-current" : "")} />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Refresh" onClick={poll}>
-            <RefreshCw className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Open logs" onClick={() => window.airbar.openLogs()}>
-            <FileText className="h-3.5 w-3.5" />
-          </Button>
           <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Minimize" onClick={() => window.airbar.minimize()}>
             <Minus className="h-3.5 w-3.5" />
           </Button>
@@ -248,7 +241,7 @@ export function App() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-auto p-2.5">
+      <main className={cn("flex-1 overflow-auto p-2.5", isBarCollapsed && "hidden")}>
         {snapshot?.error ? <div className="mb-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">{snapshot.error}</div> : null}
         {actionError ? <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">{actionError}</div> : null}
 
@@ -302,6 +295,103 @@ export function App() {
         ) : null}
       </main>
     </div>
+  );
+}
+
+function calculateStatusSummary(projects: AirbarProject[], clearedDoneSessions: Record<string, string>) {
+  return projects.reduce(
+    (summary, project) => {
+      for (const session of project.sessions) {
+        if (session.status === "working") summary.working += 1;
+        if (session.status === "done" && clearedDoneSessions[session.id] !== session.updatedAt) summary.done += 1;
+      }
+      return summary;
+    },
+    { working: 0, done: 0 }
+  );
+}
+
+function TopBarToolset({
+  alwaysOnTop,
+  topCenterSnapped,
+  theme,
+  onToggleAlwaysOnTop,
+  onToggleTheme,
+  onSnapTopCenter,
+  onRefresh,
+  onOpenLogs
+}: {
+  alwaysOnTop: boolean;
+  topCenterSnapped: boolean;
+  theme: string;
+  onToggleAlwaysOnTop: () => void;
+  onToggleTheme: () => void;
+  onSnapTopCenter: () => void;
+  onRefresh: () => void;
+  onOpenLogs: () => void;
+}) {
+  return (
+    <div className="no-drag flex min-w-0 flex-1 items-center justify-end gap-0.5">
+      <Button
+        variant="ghost"
+        size="icon"
+        title={alwaysOnTop ? "Disable always on top" : "Enable always on top"}
+        className="h-6 w-6 rounded-sm"
+        onClick={onToggleAlwaysOnTop}
+      >
+        {alwaysOnTop ? <Pin className="h-3.5 w-3.5 fill-current" /> : <PinOff className="h-3.5 w-3.5" />}
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6 rounded-sm"
+        title={theme === "dark" ? "Dark theme active" : "Light theme active"}
+        onClick={onToggleTheme}
+      >
+        {theme === "dark" ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6 rounded-sm"
+        title={topCenterSnapped ? "Snapped to top center" : "Snap to top center"}
+        onClick={onSnapTopCenter}
+      >
+        <Magnet className={cn("h-3.5 w-3.5", topCenterSnapped ? "fill-current" : "")} />
+      </Button>
+      <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Refresh" onClick={onRefresh}>
+        <RefreshCw className="h-3.5 w-3.5" />
+      </Button>
+      <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Open logs" onClick={onOpenLogs}>
+        <FileText className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
+}
+
+function StatusSummaryDots({
+  summary,
+  onRestore
+}: {
+  summary: { working: number; done: number };
+  onRestore: () => void;
+}) {
+  const dotCount = summary.working + summary.done;
+  return (
+    <button
+      type="button"
+      className="no-drag flex h-5 min-w-0 flex-1 items-center justify-end gap-1 overflow-hidden rounded-sm px-1 hover:bg-muted/45 active:bg-muted"
+      title={`${summary.working} working, ${summary.done} done. Click to restore Airbar.`}
+      onClick={onRestore}
+    >
+      {dotCount === 0 ? <span className="text-[10px] leading-none text-muted-foreground">idle</span> : null}
+      {Array.from({ length: summary.working }).map((_, index) => (
+        <span key={`working-${index}`} className="h-2.5 w-2.5 shrink-0 rounded-full bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.65)]" />
+      ))}
+      {Array.from({ length: summary.done }).map((_, index) => (
+        <span key={`done-${index}`} className="h-2.5 w-2.5 shrink-0 rounded-full bg-sky-400" />
+      ))}
+    </button>
   );
 }
 

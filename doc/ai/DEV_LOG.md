@@ -14,6 +14,7 @@ Summary:
 - Clarified status semantics so `working` reads as violet and `done` reads as Codex-style blue, while keeping the underlying inference heuristics local and best-effort.
 - Simplified session lifecycle to `working` / `done` / `idle`, kept `done` visible for up to 18 hours, added manual clear-done memory, and prevented stale pre-restart sessions older than that window from reviving as `working` without a fresh process signal.
 - Fixed a resumed-session edge case where a fresh user message after a completed turn could be incorrectly shown as `done`; pending user messages now immediately show `working` until assistant activity appears.
+- Mapped `turn_aborted` to the same terminal window as `done`, so sessions the user stops on purpose can still surface as completed work until the normal 18-hour idle fallback.
 - Added an explicit magnet control that snaps the window to top-center using the current size and reflects snapped state with a filled icon.
 - Normalized stateful button semantics so icons represent the current state for theme, idle visibility, pin, and magnet controls.
 - Improved workspace attribution by reading session-file head metadata such as `session_meta.payload.cwd`, `turn_context.payload.workspace_roots`, and early `turn_context.payload.cwd`.

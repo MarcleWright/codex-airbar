@@ -66,6 +66,7 @@ Turn Airbar into a denser, calmer floating monitor while improving project attri
 - Removed the temporary auto-snap behavior and widened the default Electron window from 420px to 630px.
 - Simplified session lifecycle to `working` / `done` / `idle`, kept `done` visible for 18 hours, added user-clearable done memory, and prevented stale sessions older than that window from reviving as `working` after restart unless a fresh process signal exists.
 - Added pending-user-message detection so a resumed or recently messaged session moves to `working` before Codex emits reasoning, commentary, or tool-call events.
+- Added `turn_aborted` detection so a session the user intentionally stops is treated as a completion-like terminal state and remains `done` until the same 18-hour idle fallback expires.
 - Added a magnet button with filled/outline state for explicit top-center positioning.
 
 ### Validation
@@ -92,6 +93,7 @@ Turn Airbar into a denser, calmer floating monitor while improving project attri
 - Session-row action defaults to `resumeSession`.
 - Project-level Explorer access and per-project UI memory remain part of the monitoring workflow.
 - Status reload behavior now treats stale sessions older than the 18-hour done window as `idle` unless `chat_processes.json` still shows a recent live process for that thread.
+- Local Codex sessions may end through `task_complete`, `final_answer`, or `turn_aborted`; Airbar should treat that last case as a user-stopped completion signal instead of an in-progress state.
 
 ### Changed
 
@@ -102,6 +104,7 @@ Turn Airbar into a denser, calmer floating monitor while improving project attri
 - User-facing status colors now read as violet = `working`, blue = `done`, while the underlying status inference remains local and heuristic.
 - `recent` is no longer a first-class status bucket.
 - User messages after a completed turn take priority over old `task_complete` / `final_answer` signals until assistant activity appears.
+- Intentional user interruption (`turn_aborted`) takes priority over pending-user detection and should still surface as `done` within the completion window.
 
 ### Avoid
 
