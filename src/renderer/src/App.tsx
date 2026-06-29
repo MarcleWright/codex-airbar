@@ -16,7 +16,7 @@ const AUTO_HEIGHT_SESSION_ROW = 28;
 const AUTO_HEIGHT_PROJECT_GAP = 6;
 const AUTO_HEIGHT_EMPTY_STATE = 82;
 const AUTO_HEIGHT_ALERT = 42;
-const HEADER_RIGHT_SECTION_WIDTH = "min(420px, 64vw)";
+const COLLAPSED_SUMMARY_WIDTH = "min(420px, 64vw)";
 
 type OpenActionKey = "openWorkspace" | "resumeSession";
 
@@ -218,8 +218,11 @@ export function App() {
             <h1 className="truncate text-[12px] font-semibold leading-none">Codex Airbar</h1>
           </button>
         </div>
-        <div className={cn("h-full min-w-[24px] flex-1", !isBarCollapsed && "drag-region")} />
-        <div className="no-drag flex h-full items-center justify-end" style={{ width: HEADER_RIGHT_SECTION_WIDTH }}>
+        <div className={cn("h-full min-w-[32px] flex-1", !isBarCollapsed && "drag-region")} />
+        <div
+          className={cn("no-drag flex h-full items-center justify-end", isBarCollapsed ? "min-w-0" : "shrink-0")}
+          style={isBarCollapsed ? { width: COLLAPSED_SUMMARY_WIDTH } : undefined}
+        >
           {isBarCollapsed ? (
             <StatusSummaryDots summary={statusSummary} onRestore={() => setIsBarCollapsed(false)} />
           ) : (
