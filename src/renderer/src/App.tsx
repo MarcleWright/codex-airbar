@@ -16,6 +16,7 @@ const AUTO_HEIGHT_SESSION_ROW = 28;
 const AUTO_HEIGHT_PROJECT_GAP = 6;
 const AUTO_HEIGHT_EMPTY_STATE = 82;
 const AUTO_HEIGHT_ALERT = 42;
+const HEADER_RIGHT_SECTION_WIDTH = "min(420px, 64vw)";
 
 type OpenActionKey = "openWorkspace" | "resumeSession";
 
@@ -206,7 +207,7 @@ export function App() {
   return (
     <div className="airbar-shell flex h-screen flex-col overflow-hidden bg-background text-foreground">
       <header className={cn("flex h-8 items-center bg-background/95", !isBarCollapsed && "border-b border-border")}>
-        <div className="drag-region flex h-full min-w-0 flex-1 items-center gap-1.5 px-2">
+        <div className="no-drag flex h-full min-w-0 items-center px-1.5">
           <button
             type="button"
             className="no-drag flex h-5 min-w-0 items-center gap-1.5 rounded-sm px-1.5 text-left active:bg-muted/50"
@@ -216,6 +217,9 @@ export function App() {
             <div className="h-4 w-1 rounded-full bg-gradient-to-b from-emerald-300 to-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.28)]" />
             <h1 className="truncate text-[12px] font-semibold leading-none">Codex Airbar</h1>
           </button>
+        </div>
+        <div className={cn("h-full min-w-[24px] flex-1", !isBarCollapsed && "drag-region")} />
+        <div className="no-drag flex h-full items-center justify-end" style={{ width: HEADER_RIGHT_SECTION_WIDTH }}>
           {isBarCollapsed ? (
             <StatusSummaryDots summary={statusSummary} onRestore={() => setIsBarCollapsed(false)} />
           ) : (
@@ -231,7 +235,7 @@ export function App() {
             />
           )}
         </div>
-        <div className="no-drag flex items-center gap-0.5 pr-1">
+        <div className="no-drag flex items-center gap-0.5 pr-1.5">
           <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Minimize" onClick={() => window.airbar.minimize()}>
             <Minus className="h-3.5 w-3.5" />
           </Button>
@@ -333,7 +337,7 @@ function TopBarToolset({
   onOpenLogs: () => void;
 }) {
   return (
-    <div className="no-drag flex min-w-0 flex-1 items-center justify-end gap-0.5">
+    <div className="no-drag flex h-full w-full min-w-0 items-center justify-end gap-0.5">
       <Button
         variant="ghost"
         size="icon"
@@ -382,7 +386,7 @@ function StatusSummaryDots({
   return (
     <button
       type="button"
-      className="no-drag flex h-5 min-w-0 flex-1 items-center justify-end gap-1 overflow-hidden rounded-sm px-1 hover:bg-muted/45 active:bg-muted"
+      className="no-drag flex h-5 w-full min-w-0 items-center justify-end gap-1 overflow-hidden rounded-sm px-1 hover:bg-muted/45 active:bg-muted"
       title={`${summary.working} working, ${summary.done} done. Click to restore Airbar.`}
       onClick={onRestore}
     >

@@ -14,8 +14,6 @@ let mainWindow = null;
 let isPinnedToTop = true;
 let resolvedCodexPath = null;
 let allowProgrammaticMinimize = false;
-let lastNormalBounds = null;
-let isRestoringBounds = false;
 let tray = null;
 let isQuitting = false;
 let hasShownTrayHint = false;
@@ -92,9 +90,13 @@ function getTopCenterPosition(windowWidth, windowHeight) {
 
 function snapWindowToTopCenter(targetWindow) {
   if (!targetWindow || targetWindow.isDestroyed()) return;
-  const [windowWidth, windowHeight] = targetWindow.getSize();
-  const position = getTopCenterPosition(windowWidth, windowHeight);
-  targetWindow.setPosition(position.x, position.y);
+  const bounds = targetWindow.getBounds();
+  const position = getTopCenterPosition(bounds.width, bounds.height);
+  targetWindow.setBounds({
+    ...bounds,
+    x: position.x,
+    y: position.y
+  });
   emitSnapTopCenterState(targetWindow);
 }
 
@@ -227,41 +229,6 @@ function createTray() {
   return tray;
 }
 
-function isWindowsSnapBounds(bounds) {
-  const display = screen.getDisplayMatching(bounds);
-  const area = display.workArea;
-  const nearlyFullHeight = Math.abs(bounds.height - area.height) <= 8;
-  const nearlyFullWidth = Math.abs(bounds.width - area.width) <= 8;
-  const nearlyHalfWidth = Math.abs(bounds.width - Math.round(area.width / 2)) <= 16;
-  const atLeftEdge = Math.abs(bounds.x - area.x) <= 8;
-  const atRightEdge = Math.abs(bounds.x + bounds.width - (area.x + area.width)) <= 8;
-  const atTopEdge = Math.abs(bounds.y - area.y) <= 8;
-  return atTopEdge && nearlyFullHeight && (nearlyFullWidth || nearlyHalfWidth) && (atLeftEdge || atRightEdge || nearlyFullWidth);
-}
-
-function rememberNormalBounds(targetWindow) {
-  if (!targetWindow || targetWindow.isDestroyed() || isRestoringBounds) return;
-  if (targetWindow.isMaximized() || targetWindow.isFullScreen() || targetWindow.isMinimized()) return;
-  const bounds = targetWindow.getBounds();
-  if (isWindowsSnapBounds(bounds)) return;
-  lastNormalBounds = bounds;
-}
-
-function restoreFromWindowsSnap(targetWindow) {
-  if (!targetWindow || targetWindow.isDestroyed() || isRestoringBounds) return;
-  const bounds = targetWindow.getBounds();
-  if (!isWindowsSnapBounds(bounds)) {
-    rememberNormalBounds(targetWindow);
-    return;
-  }
-  const fallback = lastNormalBounds || { width: 630, height: 210, ...getTopCenterPosition(630, 210) };
-  isRestoringBounds = true;
-  targetWindow.setBounds(fallback);
-  queueMicrotask(() => {
-    isRestoringBounds = false;
-  });
-}
-
 function createWindow() {
   const width = 630;
   const height = 210;
@@ -292,7 +259,6 @@ function createWindow() {
   });
 
   mainWindow.setAlwaysOnTop(isPinnedToTop, "floating");
-  lastNormalBounds = mainWindow.getBounds();
 
   mainWindow.on("maximize", () => {
     mainWindow?.unmaximize();
@@ -311,11 +277,9 @@ function createWindow() {
     hideMainWindow();
   });
   mainWindow.on("move", () => {
-    restoreFromWindowsSnap(mainWindow);
     emitSnapTopCenterState(mainWindow);
   });
   mainWindow.on("resize", () => {
-    restoreFromWindowsSnap(mainWindow);
     emitSnapTopCenterState(mainWindow);
   });
 
