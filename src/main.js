@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Notification, screen, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, Notification, Tray, screen, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -16,6 +16,16 @@ let resolvedCodexPath = null;
 let allowProgrammaticMinimize = false;
 let lastNormalBounds = null;
 let isRestoringBounds = false;
+let tray = null;
+let isQuitting = false;
+let hasShownTrayHint = false;
+let lastDuplicateLaunchNoticeAt = 0;
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!gotSingleInstanceLock) {
+  app.quit();
+}
 
 function log(message, error) {
   const detail = error ? `\n${error.stack || error.message || String(error)}` : "";
@@ -129,6 +139,94 @@ function emitSnapTopCenterState(targetWindow) {
   targetWindow.webContents.send("app:snapTopCenterStateChanged", isTopCenterSnapped(targetWindow));
 }
 
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.setSkipTaskbar(false);
+  if (!mainWindow.isVisible()) {
+    mainWindow.show();
+  }
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+  mainWindow.focus();
+}
+
+function hideMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.setSkipTaskbar(true);
+  mainWindow.hide();
+  showTrayHintOnce();
+}
+
+function showTrayHintOnce() {
+  if (hasShownTrayHint || !Notification.isSupported()) return;
+  hasShownTrayHint = true;
+  const notification = new Notification({
+    title: "Codex Airbar is still running",
+    body: "The window was hidden to the system tray. Use the tray icon to restore or quit."
+  });
+  notification.show();
+}
+
+function showDuplicateLaunchNotice() {
+  if (!Notification.isSupported()) return;
+  const now = Date.now();
+  if (now - lastDuplicateLaunchNoticeAt < 5000) return;
+  lastDuplicateLaunchNoticeAt = now;
+  const notification = new Notification({
+    title: "Codex Airbar is already running",
+    body: "The existing window has been restored from the system tray."
+  });
+  notification.show();
+}
+
+function buildTrayMenu() {
+  return Menu.buildFromTemplate([
+    {
+      label: "Show Airbar",
+      click: () => showMainWindow()
+    },
+    {
+      label: isPinnedToTop ? "Disable Always On Top" : "Enable Always On Top",
+      click: () => {
+        isPinnedToTop = !isPinnedToTop;
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.setAlwaysOnTop(isPinnedToTop, "floating");
+        }
+        refreshTrayMenu();
+      }
+    },
+    { type: "separator" },
+    {
+      label: "Quit",
+      click: () => {
+        isQuitting = true;
+        tray?.destroy();
+        app.quit();
+      }
+    }
+  ]);
+}
+
+function refreshTrayMenu() {
+  if (!tray || tray.isDestroyed()) return;
+  tray.setContextMenu(buildTrayMenu());
+}
+
+function createTray() {
+  if (tray && !tray.isDestroyed()) return tray;
+  tray = new Tray(appIconPath);
+  tray.setToolTip("Codex Airbar");
+  refreshTrayMenu();
+  tray.on("click", () => {
+    showMainWindow();
+  });
+  tray.on("double-click", () => {
+    showMainWindow();
+  });
+  return tray;
+}
+
 function isWindowsSnapBounds(bounds) {
   const display = screen.getDisplayMatching(bounds);
   const area = display.workArea;
@@ -207,6 +305,11 @@ function createWindow() {
     event.preventDefault();
     mainWindow?.restore();
   });
+  mainWindow.on("close", (event) => {
+    if (isQuitting) return;
+    event.preventDefault();
+    hideMainWindow();
+  });
   mainWindow.on("move", () => {
     restoreFromWindowsSnap(mainWindow);
     emitSnapTopCenterState(mainWindow);
@@ -231,19 +334,32 @@ function createWindow() {
   }
 }
 
+if (gotSingleInstanceLock) {
+  app.on("second-instance", () => {
+    log("Second launch detected; restoring existing instance.");
+    showMainWindow();
+    showDuplicateLaunchNotice();
+  });
+}
+
 app.whenReady().then(() => {
   log("App ready");
+  createTray();
   createWindow();
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+      return;
+    }
+    showMainWindow();
   });
 }).catch((error) => {
   log("App startup failed", error);
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  if (process.platform !== "darwin" && isQuitting) app.quit();
 });
 
 process.on("uncaughtException", (error) => {
@@ -299,6 +415,7 @@ ipcMain.handle("app:setAlwaysOnTop", (_event, nextValue) => {
   if (mainWindow) {
     mainWindow.setAlwaysOnTop(nextPinned, "floating");
   }
+  refreshTrayMenu();
   return isPinnedToTop;
 });
 

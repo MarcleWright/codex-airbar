@@ -39,6 +39,14 @@ Codex Airbar currently has one floating monitor window.
 - Empty: no local Codex sessions found.
 - Error: snapshot errors appear in an error box while the app remains open.
 
+## Background Resident Behavior
+
+- The intended Windows background-resident model uses the taskbar notification area (system tray) rather than a second visible window.
+- Clicking the window close button should hide the monitor to the tray instead of quitting the app.
+- The tray icon should restore the floating window when clicked and expose a context menu with at least `Show`, `Always on top`, and `Quit`.
+- A first-run or first-hide hint may explain that the app is still running in the tray so the behavior does not feel like an accidental close failure.
+- Tray behavior should preserve the current compact utility character: no extra dashboard, no modal shutdown flow, and no duplicated controls that already exist in the title bar.
+
 ## Theme Foundation
 
 - Theme colors are defined as CSS variables in `src/renderer/src/styles.css`.

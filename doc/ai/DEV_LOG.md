@@ -19,6 +19,8 @@ Summary:
 - Normalized stateful button semantics so icons represent the current state for theme, idle visibility, pin, and magnet controls.
 - Improved workspace attribution by reading session-file head metadata such as `session_meta.payload.cwd`, `turn_context.payload.workspace_roots`, and early `turn_context.payload.cwd`.
 - Confirmed that completed local sessions still expose process signals such as `reasoning`, tool-call events, `turn_context`, `agent_message`, `final_answer`, and `task_complete`, which may support future richer Airbar interaction states even though they are not yet surfaced in the UI.
+- Recorded separate durable plans for Windows tray-based background residency and `portable`-first packaging so future implementation can reuse the same product, design, architecture, and engineering framing instead of rediscovering it in chat.
+- Added a release protection step that obfuscates Electron core files into `.protected-src/` before portable packaging, with docs noting that this raises casual inspection/tampering cost but is not true client-side secrecy.
 
 Primary task links:
 

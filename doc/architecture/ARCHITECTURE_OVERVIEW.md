@@ -16,6 +16,7 @@ Codex Airbar is a local Electron app that watches Codex session metadata and dis
 - `src/renderer/src/components/ui/`: shadcn-style local UI primitives.
 - `src/renderer/src/styles.css`: Tailwind entry and CSS variable theme tokens.
 - `scripts/check.js`: command-line validation for the status reader.
+- `scripts/protect-build.js`: release-time obfuscation step for Electron core files.
 - `start-codex-airbar.bat`: Windows double-click launcher.
 
 ## Responsibility Boundaries
@@ -43,5 +44,8 @@ Codex Airbar is a local Electron app that watches Codex session metadata and dis
 - Recover workspaces conservatively from multiple local signals: session-file head metadata, persisted hints, writable roots, process `cwd`, event `cwd`, explicit `-C/--cd` command arguments, and repo-root inference from message paths.
 - Keep project UI memory renderer-local and persist it by workspace key in `localStorage`.
 - Keep the monitor window as a wider frameless floating panel without automatic edge-docking behavior; top-center placement is an explicit IPC action behind the magnet button.
+- The preferred first background-resident architecture is window-hiding plus tray residency, not a full headless rewrite: renderer polling and transition detection can remain alive while the hidden window stays mounted.
+- If a later phase needs true no-window monitoring, move polling and done-transition detection into the main process before allowing the renderer window to be destroyed.
+- Packaged releases do not include the raw Electron core files directly. `electron-builder` points the packaged app entry to generated `.protected-src/main.js`, while normal development continues to run from `src/main.js`.
 - Current status inference is heuristic and tiered: `working` is driven by fresh process activity plus very recent event/file signals, `done` is driven by completion-like signals within an 18-hour window, and `idle` covers older sessions unless a current process signal revives them.
 - Local completed sessions expose richer event-sequence signals than Airbar currently uses, including `reasoning`, tool-call start/output events, `final_answer`, and `task_complete`; these are the preferred next path for stronger status inference.

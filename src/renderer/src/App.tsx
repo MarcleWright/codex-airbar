@@ -205,11 +205,11 @@ export function App() {
 
   return (
     <div className="airbar-shell flex h-screen flex-col overflow-hidden bg-background text-foreground">
-      <header className="flex h-8 items-center border-b border-border bg-background/95">
+      <header className={cn("flex h-8 items-center bg-background/95", !isBarCollapsed && "border-b border-border")}>
         <div className="drag-region flex h-full min-w-0 flex-1 items-center gap-1.5 px-2">
           <button
             type="button"
-            className="no-drag flex h-5 min-w-0 items-center gap-1.5 rounded-sm border border-border/70 bg-muted/35 px-1.5 text-left hover:bg-muted/60 active:bg-muted"
+            className="no-drag flex h-5 min-w-0 items-center gap-1.5 rounded-sm px-1.5 text-left active:bg-muted/50"
             title={isBarCollapsed ? "Restore Airbar" : "Collapse to title bar"}
             onClick={() => setIsBarCollapsed((current) => !current)}
           >
@@ -241,59 +241,61 @@ export function App() {
         </div>
       </header>
 
-      <main className={cn("flex-1 overflow-auto p-2.5", isBarCollapsed && "hidden")}>
-        {snapshot?.error ? <div className="mb-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">{snapshot.error}</div> : null}
-        {actionError ? <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">{actionError}</div> : null}
+      {!isBarCollapsed ? (
+        <main className="flex-1 overflow-auto p-2.5">
+          {snapshot?.error ? <div className="mb-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">{snapshot.error}</div> : null}
+          {actionError ? <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">{actionError}</div> : null}
 
-        <section className="grid gap-1.5">
-          {filteredProjects.map((project) => (
-            <ProjectCard
-              key={project.workspace}
-              project={project}
-              onOpenError={setActionError}
-              isDoneCleared={(session) => clearedDoneSessions[session.id] === session.updatedAt}
-              onClearDone={() =>
-                setClearedDoneSessions((current) => {
-                  const next = { ...current };
-                  for (const session of project.sessions) {
-                    if (session.status === "done") {
-                      next[session.id] = session.updatedAt;
+          <section className="grid gap-1.5">
+            {filteredProjects.map((project) => (
+              <ProjectCard
+                key={project.workspace}
+                project={project}
+                onOpenError={setActionError}
+                isDoneCleared={(session) => clearedDoneSessions[session.id] === session.updatedAt}
+                onClearDone={() =>
+                  setClearedDoneSessions((current) => {
+                    const next = { ...current };
+                    for (const session of project.sessions) {
+                      if (session.status === "done") {
+                        next[session.id] = session.updatedAt;
+                      }
                     }
-                  }
-                  return next;
-                })
-              }
-              collapsed={projectUiState[project.workspace]?.collapsed ?? DEFAULT_PROJECT_UI_STATE.collapsed}
-              hideIdle={projectUiState[project.workspace]?.hideIdle ?? DEFAULT_PROJECT_UI_STATE.hideIdle}
-              onToggleCollapsed={() =>
-                setProjectUiState((current) => ({
-                  ...current,
-                  [project.workspace]: {
-                    collapsed: !(current[project.workspace]?.collapsed ?? DEFAULT_PROJECT_UI_STATE.collapsed),
-                    hideIdle: current[project.workspace]?.hideIdle ?? DEFAULT_PROJECT_UI_STATE.hideIdle
-                  }
-                }))
-              }
-              onToggleHideIdle={() =>
-                setProjectUiState((current) => ({
-                  ...current,
-                  [project.workspace]: {
-                    collapsed: current[project.workspace]?.collapsed ?? DEFAULT_PROJECT_UI_STATE.collapsed,
-                    hideIdle: !(current[project.workspace]?.hideIdle ?? DEFAULT_PROJECT_UI_STATE.hideIdle)
-                  }
-                }))
-              }
-            />
-          ))}
-        </section>
+                    return next;
+                  })
+                }
+                collapsed={projectUiState[project.workspace]?.collapsed ?? DEFAULT_PROJECT_UI_STATE.collapsed}
+                hideIdle={projectUiState[project.workspace]?.hideIdle ?? DEFAULT_PROJECT_UI_STATE.hideIdle}
+                onToggleCollapsed={() =>
+                  setProjectUiState((current) => ({
+                    ...current,
+                    [project.workspace]: {
+                      collapsed: !(current[project.workspace]?.collapsed ?? DEFAULT_PROJECT_UI_STATE.collapsed),
+                      hideIdle: current[project.workspace]?.hideIdle ?? DEFAULT_PROJECT_UI_STATE.hideIdle
+                    }
+                  }))
+                }
+                onToggleHideIdle={() =>
+                  setProjectUiState((current) => ({
+                    ...current,
+                    [project.workspace]: {
+                      collapsed: current[project.workspace]?.collapsed ?? DEFAULT_PROJECT_UI_STATE.collapsed,
+                      hideIdle: !(current[project.workspace]?.hideIdle ?? DEFAULT_PROJECT_UI_STATE.hideIdle)
+                    }
+                  }))
+                }
+              />
+            ))}
+          </section>
 
-        {!snapshot?.error && filteredProjects.length === 0 ? (
-          <Card className="p-4">
-            <h2 className="text-sm font-semibold">No Codex sessions found</h2>
-            <p className="mt-1 text-xs text-muted-foreground">Airbar reads from your local .codex folder in read-only mode.</p>
-          </Card>
-        ) : null}
-      </main>
+          {!snapshot?.error && filteredProjects.length === 0 ? (
+            <Card className="p-4">
+              <h2 className="text-sm font-semibold">No Codex sessions found</h2>
+              <p className="mt-1 text-xs text-muted-foreground">Airbar reads from your local .codex folder in read-only mode.</p>
+            </Card>
+          ) : null}
+        </main>
+      ) : null}
     </div>
   );
 }
