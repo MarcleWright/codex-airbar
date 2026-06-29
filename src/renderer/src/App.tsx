@@ -19,7 +19,7 @@ const AUTO_HEIGHT_ALERT = 42;
 
 type OpenActionKey = "openWorkspace" | "resumeSession";
 
-const SESSION_OPEN_ACTION: OpenActionKey = "resumeSession";
+const SESSION_OPEN_ACTION: OpenActionKey = "openWorkspace";
 
 const statusTone: Record<AirbarStatus, string> = {
   working: "bg-violet-400 shadow-[0_0_14px_rgba(167,139,250,0.6)]",

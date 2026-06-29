@@ -19,7 +19,7 @@ if not exist "node_modules\electron\dist\electron.exe" (
   )
 )
 
-call npm start
+call npm run start:bg
 if errorlevel 1 (
   echo Codex Airbar exited with an error.
   pause
