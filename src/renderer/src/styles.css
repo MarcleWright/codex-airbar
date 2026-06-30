@@ -68,16 +68,28 @@
   -webkit-app-region: no-drag;
 }
 
-.airbar-shell {
+.airbar-surface-classic {
   border: 1px solid hsl(var(--border) / 0.75);
   box-shadow: 0 10px 28px rgb(15 23 42 / 0.18);
 }
 
-.dark .airbar-shell {
+.dark .airbar-surface-classic {
   border-color: rgb(255 255 255 / 0.1);
   box-shadow:
     0 10px 28px rgb(0 0 0 / 0.38),
     0 0 0 1px rgb(255 255 255 / 0.04);
+}
+
+.airbar-surface-glass {
+  border: 1px solid hsl(var(--border) / 0.55);
+  box-shadow: 0 12px 30px rgb(15 23 42 / 0.2);
+}
+
+.dark .airbar-surface-glass {
+  border-color: rgb(255 255 255 / 0.13);
+  box-shadow:
+    0 12px 30px rgb(0 0 0 / 0.42),
+    0 0 0 1px rgb(255 255 255 / 0.05);
 }
 
 .line-clamp-2 {

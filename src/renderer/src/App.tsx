@@ -25,7 +25,7 @@ const AUTO_HEIGHT_ALERT = 42;
 const COLLAPSED_SUMMARY_WIDTH = "min(420px, 64vw)";
 const SETTINGS_VIEW_HEIGHT = 226;
 
-type AirbarThemeSurface = "classic";
+type AirbarThemeSurface = "classic" | "glass";
 
 type AirbarSettings = {
   themeSurface: AirbarThemeSurface;
@@ -237,7 +237,10 @@ export function App() {
   }
 
   return (
-    <div className="airbar-shell flex h-screen flex-col overflow-hidden bg-background text-foreground">
+    <div
+      className={cn("airbar-shell flex h-screen flex-col overflow-hidden bg-background text-foreground", `airbar-surface-${settings.themeSurface}`)}
+      data-surface={settings.themeSurface}
+    >
       <header className={cn("flex h-8 items-center bg-background/95", !isBarCollapsed && "border-b border-border")}>
         <div className="no-drag flex h-full min-w-0 items-center px-1.5">
           <button
@@ -360,10 +363,14 @@ function readAirbarSettings(): AirbarSettings {
 
 function normalizeAirbarSettings(settings: Partial<AirbarSettings>): AirbarSettings {
   return {
-    themeSurface: settings.themeSurface === "classic" ? settings.themeSurface : DEFAULT_AIRBAR_SETTINGS.themeSurface,
+    themeSurface: isAirbarThemeSurface(settings.themeSurface) ? settings.themeSurface : DEFAULT_AIRBAR_SETTINGS.themeSurface,
     width: clampNumber(settings.width, MIN_AIRBAR_WIDTH, MAX_AIRBAR_WIDTH, DEFAULT_AIRBAR_WIDTH),
     projectLimit: clampNumber(settings.projectLimit, MIN_PROJECT_LIMIT, MAX_PROJECT_LIMIT, DEFAULT_PROJECT_LIMIT)
   };
+}
+
+function isAirbarThemeSurface(value: unknown): value is AirbarThemeSurface {
+  return value === "classic" || value === "glass";
 }
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number) {
@@ -505,7 +512,12 @@ function SettingsView({
               >
                 Classic
               </Button>
-              <Button variant="ghost" size="sm" className="h-6 rounded-sm px-2 text-[10px] opacity-50" disabled>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn("h-6 rounded-sm px-2 text-[10px]", settings.themeSurface === "glass" && "bg-muted")}
+                onClick={() => updateSettings({ themeSurface: "glass" })}
+              >
                 Glass
               </Button>
             </div>
@@ -534,7 +546,7 @@ function SettingsView({
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-[11px] font-medium leading-4">Projects</div>
-              <div className="text-[10px] leading-4 text-muted-foreground">{settings.projectLimit} visible</div>
+              <div className="text-[10px] leading-4 text-muted-foreground">{settings.projectLimit} height basis</div>
             </div>
             <input
               className="max-w-[260px] flex-1"
