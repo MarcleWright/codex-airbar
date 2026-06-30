@@ -6,8 +6,9 @@ Codex Airbar currently has one floating monitor window.
 
 ## Layout Structure
 
-- Title bar: app name, always-on-top toggle, theme toggle, refresh, magnet snap, log, minimize, and close controls.
+- Title bar: app name, always-on-top toggle, theme toggle, refresh, magnet snap, settings, log, minimize, and close controls.
 - Project list: project cards grouped by workspace.
+- Settings view: compact controls for surface family, live window width, and the project-count basis used by automatic height calculation.
 - Project header: title, independent collapse and idle-visibility controls, collapsed-state working/done count capsules, and Explorer button.
 - Session rows: vertical status bar, title, elapsed time, inline context snippet, and an icon-only Codex action.
 
@@ -31,6 +32,10 @@ Codex Airbar currently has one floating monitor window.
 - Pin and magnet controls use filled icons to indicate active state.
 - Status colors use violet for `working`, Codex-style blue for `done`, and muted gray for `idle`.
 - Scrollbars and future range inputs use slim custom styling so the UI reads as a compact utility rather than a stock system panel.
+- Settings switches the main content area between projects and app settings.
+- The surface setting supports `classic` and `glass`; it does not control light/dark mode.
+- Glass uses a transparent Electron window, Windows acrylic material where available, and CSS fallback layering for the shell, title bar, project cards, and session rows.
+- The project-count setting in Settings is a height-calculation basis, not a filter for the visible project list.
 
 ## Important UI States
 
@@ -53,3 +58,4 @@ Codex Airbar currently has one floating monitor window.
 - `.light` and `.dark` classes on `document.documentElement` select the active theme.
 - `ThemeProvider` stores the selected theme in `localStorage`.
 - Components should use semantic tokens such as `background`, `foreground`, `card`, `border`, `muted`, and `primary` instead of hard-coded app colors.
+- Surface families are separate from light/dark theme. The app shell applies `airbar-surface-classic` or `airbar-surface-glass` from persisted Airbar settings.

@@ -219,6 +219,7 @@ export function App() {
   useEffect(() => {
     window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
     window.airbar.setWindowWidth(settings.width).catch(() => null);
+    window.airbar.setThemeSurface(settings.themeSurface).catch(() => null);
   }, [settings]);
 
   useEffect(() => {
@@ -238,7 +239,7 @@ export function App() {
 
   return (
     <div
-      className={cn("airbar-shell flex h-screen flex-col overflow-hidden bg-background text-foreground", `airbar-surface-${settings.themeSurface}`)}
+      className={cn("airbar-shell flex h-screen flex-col overflow-hidden text-foreground", `airbar-surface-${settings.themeSurface}`)}
       data-surface={settings.themeSurface}
     >
       <header className={cn("flex h-8 items-center bg-background/95", !isBarCollapsed && "border-b border-border")}>
@@ -738,7 +739,10 @@ function SessionRow({
   }
 
   return (
-    <div className="grid grid-cols-[8px_minmax(0,1fr)_20px] items-center gap-1.5 border-b border-border px-2 py-1 last:border-b-0">
+    <div
+      data-airbar-session-row
+      className="grid grid-cols-[8px_minmax(0,1fr)_20px] items-center gap-1.5 border-b border-border px-2 py-1 last:border-b-0"
+    >
       <span className={cn("h-6 w-1 rounded-full self-center", statusTone[session.status])} />
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">

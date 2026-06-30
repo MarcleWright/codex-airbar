@@ -21,6 +21,7 @@ let isQuitting = false;
 let hasShownTrayHint = false;
 let lastDuplicateLaunchNoticeAt = 0;
 let lastUnsnapBounds = null;
+let themeSurface = "classic";
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
@@ -188,6 +189,19 @@ function emitSnapTopCenterState(targetWindow) {
   targetWindow.webContents.send("app:snapTopCenterStateChanged", isTopCenterSnapped(targetWindow));
 }
 
+function applyThemeSurface(targetWindow, nextSurface) {
+  if (!targetWindow || targetWindow.isDestroyed()) return themeSurface;
+  themeSurface = nextSurface === "glass" ? "glass" : "classic";
+
+  try {
+    targetWindow.setBackgroundMaterial(themeSurface === "glass" ? "acrylic" : "none");
+  } catch (error) {
+    log(`Failed to apply ${themeSurface} background material`, error);
+  }
+
+  return themeSurface;
+}
+
 function showMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.setSkipTaskbar(false);
@@ -307,6 +321,7 @@ function createWindow() {
   });
 
   mainWindow.setAlwaysOnTop(isPinnedToTop, "floating");
+  applyThemeSurface(mainWindow, themeSurface);
   mainWindow.setMinimumSize(windowWidth, TITLE_BAR_HEIGHT);
   mainWindow.setMaximumSize(windowWidth, position.maxHeight);
 
@@ -425,6 +440,10 @@ ipcMain.handle("app:getWindowWidth", () => {
 
 ipcMain.handle("app:setWindowWidth", (_event, nextWidth) => {
   return applyWindowWidth(mainWindow, nextWidth);
+});
+
+ipcMain.handle("app:setThemeSurface", (_event, nextSurface) => {
+  return applyThemeSurface(mainWindow, nextSurface);
 });
 
 ipcMain.handle("app:getAlwaysOnTop", () => {
