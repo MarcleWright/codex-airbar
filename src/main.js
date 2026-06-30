@@ -9,6 +9,7 @@ const shouldOpenDevTools = process.env.CODEX_AIRBAR_DEVTOOLS === "1";
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 const logPath = path.join(app.getPath("userData"), "codex-airbar.log");
 const appIconPath = path.join(__dirname, "..", "assets", process.platform === "win32" ? "icon.ico" : "icon.png");
+const WINDOW_WIDTH = 630;
 const TITLE_BAR_HEIGHT = 32;
 let mainWindow = null;
 let isPinnedToTop = true;
@@ -94,16 +95,20 @@ function snapWindowToTopCenter(targetWindow) {
   const bounds = targetWindow.getBounds();
   if (isTopCenterSnapped(targetWindow)) {
     if (lastUnsnapBounds) {
-      targetWindow.setBounds(lastUnsnapBounds);
+      targetWindow.setBounds({
+        ...lastUnsnapBounds,
+        width: WINDOW_WIDTH
+      });
     }
     emitSnapTopCenterState(targetWindow);
     return;
   }
 
   lastUnsnapBounds = bounds;
-  const position = getTopCenterPosition(bounds);
+  const position = getTopCenterPosition({ ...bounds, width: WINDOW_WIDTH });
   targetWindow.setBounds({
     ...bounds,
+    width: WINDOW_WIDTH,
     x: position.x,
     y: position.y
   });
@@ -120,15 +125,17 @@ function setWindowContentHeight(targetWindow, nextHeight) {
   const display = screen.getDisplayMatching(bounds);
   const maxHeight = Math.max(180, display.workArea.height - 48);
   const height = Math.max(TITLE_BAR_HEIGHT, Math.min(Math.round(parsedHeight), maxHeight));
-  targetWindow.setMinimumSize(480, height <= TITLE_BAR_HEIGHT ? TITLE_BAR_HEIGHT : 180);
+  targetWindow.setMinimumSize(WINDOW_WIDTH, height <= TITLE_BAR_HEIGHT ? TITLE_BAR_HEIGHT : 180);
+  targetWindow.setMaximumSize(WINDOW_WIDTH, maxHeight);
   if (Math.abs(bounds.height - height) <= 1) return wasTopCenterSnapped;
 
   const nextBounds = {
     ...bounds,
+    width: WINDOW_WIDTH,
     height
   };
   if (wasTopCenterSnapped) {
-    const position = getTopCenterPosition({ ...bounds, height });
+    const position = getTopCenterPosition({ ...bounds, width: WINDOW_WIDTH, height });
     nextBounds.x = position.x;
     nextBounds.y = position.y;
   }
@@ -239,7 +246,7 @@ function createTray() {
 }
 
 function createWindow() {
-  const width = 630;
+  const width = WINDOW_WIDTH;
   const height = 210;
   const position = getTopCenterPosition({ x: 0, y: 0, width, height });
 
@@ -248,7 +255,8 @@ function createWindow() {
     height: Math.min(height, position.maxHeight),
     x: position.x,
     y: position.y,
-    minWidth: 480,
+    minWidth: WINDOW_WIDTH,
+    maxWidth: WINDOW_WIDTH,
     minHeight: TITLE_BAR_HEIGHT,
     frame: false,
     transparent: false,
@@ -268,6 +276,8 @@ function createWindow() {
   });
 
   mainWindow.setAlwaysOnTop(isPinnedToTop, "floating");
+  mainWindow.setMinimumSize(WINDOW_WIDTH, TITLE_BAR_HEIGHT);
+  mainWindow.setMaximumSize(WINDOW_WIDTH, position.maxHeight);
 
   mainWindow.on("maximize", () => {
     mainWindow?.unmaximize();
