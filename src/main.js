@@ -18,6 +18,7 @@ let tray = null;
 let isQuitting = false;
 let hasShownTrayHint = false;
 let lastDuplicateLaunchNoticeAt = 0;
+let lastUnsnapBounds = null;
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
@@ -76,10 +77,10 @@ function quoteCmdArg(value) {
   return `"${String(value).replace(/"/g, '\\"')}"`;
 }
 
-function getTopCenterPosition(windowWidth, windowHeight) {
-  const display = screen.getPrimaryDisplay();
+function getTopCenterPosition(windowBounds) {
+  const display = windowBounds ? screen.getDisplayMatching(windowBounds) : screen.getPrimaryDisplay();
   const { x, y, width, height } = display.workArea;
-  const nextX = Math.round(x + (width - windowWidth) / 2);
+  const nextX = Math.round(x + (width - windowBounds.width) / 2);
   const nextY = y;
   return {
     x: nextX,
@@ -91,7 +92,16 @@ function getTopCenterPosition(windowWidth, windowHeight) {
 function snapWindowToTopCenter(targetWindow) {
   if (!targetWindow || targetWindow.isDestroyed()) return;
   const bounds = targetWindow.getBounds();
-  const position = getTopCenterPosition(bounds.width, bounds.height);
+  if (isTopCenterSnapped(targetWindow)) {
+    if (lastUnsnapBounds) {
+      targetWindow.setBounds(lastUnsnapBounds);
+    }
+    emitSnapTopCenterState(targetWindow);
+    return;
+  }
+
+  lastUnsnapBounds = bounds;
+  const position = getTopCenterPosition(bounds);
   targetWindow.setBounds({
     ...bounds,
     x: position.x,
@@ -118,7 +128,7 @@ function setWindowContentHeight(targetWindow, nextHeight) {
     height
   };
   if (wasTopCenterSnapped) {
-    const position = getTopCenterPosition(bounds.width, height);
+    const position = getTopCenterPosition({ ...bounds, height });
     nextBounds.x = position.x;
     nextBounds.y = position.y;
   }
@@ -130,10 +140,9 @@ function setWindowContentHeight(targetWindow, nextHeight) {
 
 function isTopCenterSnapped(targetWindow) {
   if (!targetWindow || targetWindow.isDestroyed()) return false;
-  const [windowWidth, windowHeight] = targetWindow.getSize();
-  const [windowX, windowY] = targetWindow.getPosition();
-  const position = getTopCenterPosition(windowWidth, windowHeight);
-  return Math.abs(windowX - position.x) <= 2 && Math.abs(windowY - position.y) <= 2;
+  const bounds = targetWindow.getBounds();
+  const position = getTopCenterPosition(bounds);
+  return Math.abs(bounds.x - position.x) <= 2 && Math.abs(bounds.y - position.y) <= 2;
 }
 
 function emitSnapTopCenterState(targetWindow) {
@@ -232,7 +241,7 @@ function createTray() {
 function createWindow() {
   const width = 630;
   const height = 210;
-  const position = getTopCenterPosition(width, height);
+  const position = getTopCenterPosition({ x: 0, y: 0, width, height });
 
   mainWindow = new BrowserWindow({
     width,
