@@ -1,4 +1,4 @@
-import { CheckCheck, ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, FileText, FolderOpen, Magnet, Minus, Moon, Pin, PinOff, RefreshCw, Sun, Terminal, X } from "lucide-react";
+import { CheckCheck, ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, FileText, FolderOpen, Magnet, Minus, Moon, Pin, PinOff, RefreshCw, Settings, Sun, Terminal, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "./theme-provider";
 import { Button } from "./components/ui/button";
@@ -8,7 +8,13 @@ import { cn } from "./lib/utils";
 const POLL_MS = 5000;
 const PROJECT_UI_STORAGE_KEY = "codex-airbar-project-ui";
 const CLEARED_DONE_STORAGE_KEY = "codex-airbar-cleared-done";
-const AUTO_HEIGHT_PROJECT_LIMIT = 4;
+const SETTINGS_STORAGE_KEY = "codex-airbar-settings";
+const DEFAULT_PROJECT_LIMIT = 4;
+const MIN_PROJECT_LIMIT = 2;
+const MAX_PROJECT_LIMIT = 6;
+const DEFAULT_AIRBAR_WIDTH = 630;
+const MIN_AIRBAR_WIDTH = 520;
+const MAX_AIRBAR_WIDTH = 920;
 const AUTO_HEIGHT_TITLE_BAR = 32;
 const AUTO_HEIGHT_CONTENT_PADDING_Y = 20;
 const AUTO_HEIGHT_PROJECT_HEADER = 26;
@@ -17,6 +23,23 @@ const AUTO_HEIGHT_PROJECT_GAP = 6;
 const AUTO_HEIGHT_EMPTY_STATE = 82;
 const AUTO_HEIGHT_ALERT = 42;
 const COLLAPSED_SUMMARY_WIDTH = "min(420px, 64vw)";
+const SETTINGS_VIEW_HEIGHT = 226;
+
+type AirbarThemeSurface = "classic" | "glass";
+
+type AirbarSettings = {
+  themeSurface: AirbarThemeSurface;
+  width: number;
+  projectLimit: number;
+};
+
+const DEFAULT_AIRBAR_SETTINGS: AirbarSettings = {
+  themeSurface: "classic",
+  width: DEFAULT_AIRBAR_WIDTH,
+  projectLimit: DEFAULT_PROJECT_LIMIT
+};
+
+type AirbarView = "projects" | "settings";
 
 type OpenActionKey = "openWorkspace" | "resumeSession";
 
@@ -74,6 +97,8 @@ export function App() {
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const [topCenterSnapped, setTopCenterSnapped] = useState(false);
   const [isBarCollapsed, setIsBarCollapsed] = useState(false);
+  const [activeView, setActiveView] = useState<AirbarView>("projects");
+  const [settings, setSettings] = useState<AirbarSettings>(() => readAirbarSettings());
   const [clearedDoneSessions, setClearedDoneSessions] = useState<Record<string, string>>(() => {
     try {
       const saved = window.localStorage.getItem(CLEARED_DONE_STORAGE_KEY);
@@ -128,11 +153,12 @@ export function App() {
       projects: filteredProjects,
       projectUiState,
       clearedDoneSessions,
+      projectLimit: settings.projectLimit,
       hasError: Boolean(snapshot?.error),
       hasActionError: Boolean(actionError),
       isEmpty: !snapshot?.error && filteredProjects.length === 0
     });
-  }, [actionError, clearedDoneSessions, filteredProjects, projectUiState, snapshot?.error]);
+  }, [actionError, clearedDoneSessions, filteredProjects, projectUiState, settings.projectLimit, snapshot?.error]);
 
   const statusSummary = useMemo(() => {
     return calculateStatusSummary(filteredProjects, clearedDoneSessions);
@@ -191,8 +217,15 @@ export function App() {
   }, [clearedDoneSessions]);
 
   useEffect(() => {
-    window.airbar.setContentHeight(isBarCollapsed ? AUTO_HEIGHT_TITLE_BAR : autoWindowHeight).catch(() => null);
-  }, [autoWindowHeight, isBarCollapsed]);
+    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    window.airbar.setWindowWidth(settings.width).catch(() => null);
+    window.airbar.setThemeSurface(settings.themeSurface).catch(() => null);
+  }, [settings]);
+
+  useEffect(() => {
+    const nextHeight = isBarCollapsed ? AUTO_HEIGHT_TITLE_BAR : activeView === "settings" ? SETTINGS_VIEW_HEIGHT : autoWindowHeight;
+    window.airbar.setContentHeight(nextHeight).catch(() => null);
+  }, [activeView, autoWindowHeight, isBarCollapsed]);
 
   async function handleToggleAlwaysOnTop() {
     const next = await window.airbar.setAlwaysOnTop(!alwaysOnTop);
@@ -205,7 +238,10 @@ export function App() {
   }
 
   return (
-    <div className="airbar-shell flex h-screen flex-col overflow-hidden bg-background text-foreground">
+    <div
+      className={cn("airbar-shell flex h-screen flex-col overflow-hidden text-foreground", `airbar-surface-${settings.themeSurface}`)}
+      data-surface={settings.themeSurface}
+    >
       <header className={cn("flex h-8 items-center bg-background/95", !isBarCollapsed && "border-b border-border")}>
         <div className="no-drag flex h-full min-w-0 items-center px-1.5">
           <button
@@ -232,10 +268,12 @@ export function App() {
               theme={theme}
               onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
               onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
-              onSnapTopCenter={handleSnapTopCenter}
-              onRefresh={poll}
-              onOpenLogs={() => window.airbar.openLogs()}
-            />
+            onSnapTopCenter={handleSnapTopCenter}
+            onRefresh={poll}
+            settingsActive={activeView === "settings"}
+            onToggleSettings={() => setActiveView((current) => (current === "settings" ? "projects" : "settings"))}
+            onOpenLogs={() => window.airbar.openLogs()}
+          />
           )}
         </div>
         <div className="no-drag flex items-center gap-0.5 pr-1.5">
@@ -248,7 +286,7 @@ export function App() {
         </div>
       </header>
 
-      {!isBarCollapsed ? (
+      {!isBarCollapsed && activeView === "projects" ? (
         <main className="flex-1 overflow-auto p-2.5">
           {snapshot?.error ? <div className="mb-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">{snapshot.error}</div> : null}
           {actionError ? <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">{actionError}</div> : null}
@@ -303,8 +341,43 @@ export function App() {
           ) : null}
         </main>
       ) : null}
+      {!isBarCollapsed && activeView === "settings" ? (
+        <SettingsView
+          settings={settings}
+          onSettingsChange={(nextSettings) => setSettings(nextSettings)}
+        />
+      ) : null}
     </div>
   );
+}
+
+function readAirbarSettings(): AirbarSettings {
+  try {
+    const saved = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!saved) return DEFAULT_AIRBAR_SETTINGS;
+    const parsed = JSON.parse(saved) as Partial<AirbarSettings>;
+    return normalizeAirbarSettings(parsed);
+  } catch {
+    return DEFAULT_AIRBAR_SETTINGS;
+  }
+}
+
+function normalizeAirbarSettings(settings: Partial<AirbarSettings>): AirbarSettings {
+  return {
+    themeSurface: isAirbarThemeSurface(settings.themeSurface) ? settings.themeSurface : DEFAULT_AIRBAR_SETTINGS.themeSurface,
+    width: clampNumber(settings.width, MIN_AIRBAR_WIDTH, MAX_AIRBAR_WIDTH, DEFAULT_AIRBAR_WIDTH),
+    projectLimit: clampNumber(settings.projectLimit, MIN_PROJECT_LIMIT, MAX_PROJECT_LIMIT, DEFAULT_PROJECT_LIMIT)
+  };
+}
+
+function isAirbarThemeSurface(value: unknown): value is AirbarThemeSurface {
+  return value === "classic" || value === "glass";
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(Math.round(parsed), max));
 }
 
 function calculateStatusSummary(projects: AirbarProject[], clearedDoneSessions: Record<string, string>) {
@@ -328,6 +401,8 @@ function TopBarToolset({
   onToggleTheme,
   onSnapTopCenter,
   onRefresh,
+  settingsActive,
+  onToggleSettings,
   onOpenLogs
 }: {
   alwaysOnTop: boolean;
@@ -337,6 +412,8 @@ function TopBarToolset({
   onToggleTheme: () => void;
   onSnapTopCenter: () => void;
   onRefresh: () => void;
+  settingsActive: boolean;
+  onToggleSettings: () => void;
   onOpenLogs: () => void;
 }) {
   return (
@@ -371,6 +448,9 @@ function TopBarToolset({
       <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Refresh" onClick={onRefresh}>
         <RefreshCw className="h-3.5 w-3.5" />
       </Button>
+      <Button variant="ghost" size="icon" className={cn("h-6 w-6 rounded-sm", settingsActive && "bg-muted")} title="Settings" onClick={onToggleSettings}>
+        <Settings className="h-3.5 w-3.5" />
+      </Button>
       <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Open logs" onClick={onOpenLogs}>
         <FileText className="h-3.5 w-3.5" />
       </Button>
@@ -404,6 +484,87 @@ function StatusSummaryDots({
   );
 }
 
+function SettingsView({
+  settings,
+  onSettingsChange
+}: {
+  settings: AirbarSettings;
+  onSettingsChange: (settings: AirbarSettings) => void;
+}) {
+  function updateSettings(next: Partial<AirbarSettings>) {
+    onSettingsChange(normalizeAirbarSettings({ ...settings, ...next }));
+  }
+
+  return (
+    <main className="flex-1 overflow-auto p-2.5">
+      <section className="grid gap-2">
+        <Card className="p-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[11px] font-medium leading-4">Theme</div>
+              <div className="text-[10px] leading-4 text-muted-foreground">Surface style</div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn("h-6 rounded-sm px-2 text-[10px]", settings.themeSurface === "classic" && "bg-muted")}
+                onClick={() => updateSettings({ themeSurface: "classic" })}
+              >
+                Classic
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn("h-6 rounded-sm px-2 text-[10px]", settings.themeSurface === "glass" && "bg-muted")}
+                onClick={() => updateSettings({ themeSurface: "glass" })}
+              >
+                Glass
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[11px] font-medium leading-4">Width</div>
+              <div className="text-[10px] leading-4 text-muted-foreground">{settings.width}px</div>
+            </div>
+            <input
+              className="max-w-[260px] flex-1"
+              type="range"
+              min={MIN_AIRBAR_WIDTH}
+              max={MAX_AIRBAR_WIDTH}
+              step={10}
+              value={settings.width}
+              onChange={(event) => updateSettings({ width: Number(event.currentTarget.value) })}
+            />
+          </div>
+        </Card>
+
+        <Card className="p-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[11px] font-medium leading-4">Projects</div>
+              <div className="text-[10px] leading-4 text-muted-foreground">{settings.projectLimit} height basis</div>
+            </div>
+            <input
+              className="max-w-[260px] flex-1"
+              type="range"
+              min={MIN_PROJECT_LIMIT}
+              max={MAX_PROJECT_LIMIT}
+              step={1}
+              value={settings.projectLimit}
+              onChange={(event) => updateSettings({ projectLimit: Number(event.currentTarget.value) })}
+            />
+          </div>
+        </Card>
+      </section>
+    </main>
+  );
+}
+
 function calculateVisibleSessionCount(
   project: AirbarProject,
   uiState: ProjectUiState | undefined,
@@ -424,6 +585,7 @@ function calculateAutoWindowHeight({
   projects,
   projectUiState,
   clearedDoneSessions,
+  projectLimit,
   hasError,
   hasActionError,
   isEmpty
@@ -431,11 +593,12 @@ function calculateAutoWindowHeight({
   projects: AirbarProject[];
   projectUiState: Record<string, ProjectUiState>;
   clearedDoneSessions: Record<string, string>;
+  projectLimit: number;
   hasError: boolean;
   hasActionError: boolean;
   isEmpty: boolean;
 }) {
-  const visibleProjects = projects.slice(0, AUTO_HEIGHT_PROJECT_LIMIT);
+  const visibleProjects = projects.slice(0, projectLimit);
   const projectHeight = visibleProjects.reduce((total, project) => {
     const sessionCount = calculateVisibleSessionCount(project, projectUiState[project.workspace], clearedDoneSessions);
     return total + AUTO_HEIGHT_PROJECT_HEADER + sessionCount * AUTO_HEIGHT_SESSION_ROW;
@@ -576,7 +739,10 @@ function SessionRow({
   }
 
   return (
-    <div className="grid grid-cols-[8px_minmax(0,1fr)_20px] items-center gap-1.5 border-b border-border px-2 py-1 last:border-b-0">
+    <div
+      data-airbar-session-row
+      className="grid grid-cols-[8px_minmax(0,1fr)_20px] items-center gap-1.5 border-b border-border px-2 py-1 last:border-b-0"
+    >
       <span className={cn("h-6 w-1 rounded-full self-center", statusTone[session.status])} />
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">

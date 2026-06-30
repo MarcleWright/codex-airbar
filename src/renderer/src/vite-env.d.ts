@@ -45,6 +45,9 @@ interface Window {
     snapTopCenter: () => Promise<boolean>;
     isTopCenterSnapped: () => Promise<boolean>;
     setContentHeight: (height: number) => Promise<boolean>;
+    getWindowWidth: () => Promise<number>;
+    setWindowWidth: (width: number) => Promise<number>;
+    setThemeSurface: (surface: "classic" | "glass") => Promise<"classic" | "glass">;
     onSnapTopCenterStateChanged: (callback: (value: boolean) => void) => () => void;
     getAlwaysOnTop: () => Promise<boolean>;
     setAlwaysOnTop: (value: boolean) => Promise<boolean>;

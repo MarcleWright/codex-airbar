@@ -2,6 +2,23 @@
 
 ## Recent
 
+### 2026-06-30 Settings View And Glass Surface
+
+Status: Done
+
+Summary:
+
+- Added a title-bar settings view that swaps the main project list into compact app settings without opening a second window.
+- Added persistent settings for surface family, window width, and project-count basis for automatic height calculation.
+- Kept `classic` / `glass` as the surface-family layer only; light/dark mode remains controlled by the existing title-bar theme toggle.
+- Refactored the renderer shell so `classic` and `glass` are real switchable surface classes instead of ad hoc style branches.
+- Added a glass surface with transparent Electron window support, Windows acrylic background material where available, and CSS fallback layering for shell, title bar, project cards, session rows, and button feedback.
+- Preserved the full project list; the project-count setting only affects automatic window-height calculation.
+
+Release note:
+
+- `v0.1.1` packages the settings surface switcher, adjustable width, height-basis control, and enhanced glass theme.
+
 ### 2026-06-26 Compact Monitor Density, Workspace Recovery, And Window Behavior
 
 Status: Done
