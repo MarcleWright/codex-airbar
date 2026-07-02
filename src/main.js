@@ -18,6 +18,7 @@ let resolvedCodexPath = null;
 let allowProgrammaticMinimize = false;
 let tray = null;
 let isQuitting = false;
+let isHidingToTray = false;
 let hasShownTrayHint = false;
 let lastDuplicateLaunchNoticeAt = 0;
 let lastUnsnapBounds = null;
@@ -204,6 +205,7 @@ function applyThemeSurface(targetWindow, nextSurface) {
 
 function showMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  isHidingToTray = false;
   mainWindow.setSkipTaskbar(false);
   if (!mainWindow.isVisible()) {
     mainWindow.show();
@@ -216,6 +218,7 @@ function showMainWindow() {
 
 function hideMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  isHidingToTray = true;
   mainWindow.setSkipTaskbar(true);
   mainWindow.hide();
   showTrayHintOnce();
@@ -332,9 +335,22 @@ function createWindow() {
     mainWindow?.setFullScreen(false);
   });
   mainWindow.on("minimize", (event) => {
-    if (allowProgrammaticMinimize) return;
+    if (allowProgrammaticMinimize) {
+      mainWindow?.setSkipTaskbar(false);
+      return;
+    }
     event.preventDefault();
-    mainWindow?.restore();
+    setImmediate(() => showMainWindow());
+  });
+  mainWindow.on("restore", () => {
+    showMainWindow();
+  });
+  mainWindow.on("show", () => {
+    mainWindow?.setSkipTaskbar(false);
+  });
+  mainWindow.on("hide", () => {
+    if (isQuitting || isHidingToTray) return;
+    setImmediate(() => showMainWindow());
   });
   mainWindow.on("close", (event) => {
     if (isQuitting) return;

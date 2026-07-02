@@ -2,6 +2,19 @@
 
 ## Recent
 
+### 2026-07-02 Taskbar Restore Fix
+
+Status: Done
+
+Summary:
+
+- Fixed a Windows taskbar restore edge case where clicking the taskbar icon could hide the Airbar window and leave it unavailable from the taskbar.
+- Tightened the main-process window state machine so only intentional tray hiding can hide the window, while taskbar minimize/hide paths restore the visible floating window.
+
+Release note:
+
+- `v0.1.2` packages the taskbar restore fix.
+
 ### 2026-06-30 Settings View And Glass Surface
 
 Status: Done
