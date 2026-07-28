@@ -4,6 +4,8 @@ const fs = require("node:fs");
 const os = require("node:os");
 const { spawn } = require("node:child_process");
 const { readCodexSnapshot } = require("./status-reader");
+const { probeCodexCommand, resolveCodexCommand, resumeSession: resumeSessionWithCli } = require("./codex-cli");
+const { SessionRecoveryController } = require("./session-recovery");
 
 const shouldOpenDevTools = process.env.CODEX_AIRBAR_DEVTOOLS === "1";
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
@@ -14,7 +16,9 @@ const TITLE_BAR_HEIGHT = 32;
 let mainWindow = null;
 let isPinnedToTop = true;
 let windowWidth = DEFAULT_WINDOW_WIDTH;
-let resolvedCodexPath = null;
+let resolvedCodexCommand = null;
+let recoveryController = null;
+let recoveryTimer = null;
 let allowProgrammaticMinimize = false;
 let tray = null;
 let isQuitting = false;
@@ -36,49 +40,50 @@ function log(message, error) {
   fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${message}${detail}\n`, "utf8");
 }
 
-function safeStat(filePath) {
-  try {
-    return fs.statSync(filePath);
-  } catch {
-    return null;
-  }
-}
-
-function findCodexExecutable() {
-  if (resolvedCodexPath) return resolvedCodexPath;
-
-  const candidates = [];
-  if (process.env.CODEX_AIRBAR_CODEX_PATH) {
-    candidates.push(process.env.CODEX_AIRBAR_CODEX_PATH);
-  }
-
-  if (process.platform === "win32") {
-    const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
-    const desktopBin = path.join(localAppData, "OpenAI", "Codex", "bin");
-    try {
-      const versionedBins = fs
-        .readdirSync(desktopBin, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => path.join(desktopBin, entry.name, "codex.exe"))
-        .filter((candidate) => safeStat(candidate))
-        .sort((a, b) => safeStat(b).mtimeMs - safeStat(a).mtimeMs);
-      candidates.push(...versionedBins);
-    } catch {
-      // Desktop installs are optional; PATH remains the final fallback.
-    }
-    candidates.push(
-      path.join(localAppData, "OpenAI", "Codex", "bin", "codex.exe"),
-      path.join(localAppData, "Programs", "OpenAI", "Codex", "bin", "codex.exe")
-    );
-  }
-
-  resolvedCodexPath = candidates.find((candidate) => safeStat(candidate)) || "codex";
-  log(`Using Codex executable: ${resolvedCodexPath}`);
-  return resolvedCodexPath;
+function findCodexCommand() {
+  if (resolvedCodexCommand) return resolvedCodexCommand;
+  resolvedCodexCommand = resolveCodexCommand();
+  log(`Using standalone Codex CLI: ${resolvedCodexCommand?.displayPath || "not found"}`);
+  return resolvedCodexCommand;
 }
 
 function quoteCmdArg(value) {
   return `"${String(value).replace(/"/g, '\\"')}"`;
+}
+
+function notify(title, body) {
+  if (!Notification.isSupported()) return;
+  new Notification({ title, body }).show();
+}
+
+async function initializeSessionRecovery() {
+  const codexCommand = findCodexCommand();
+  const cli = await probeCodexCommand(codexCommand);
+  recoveryController = new SessionRecoveryController({
+    storePath: path.join(app.getPath("userData"), "session-recovery.json"),
+    readSnapshot: readCodexSnapshot,
+    runResume: (session, prompt) => resumeSessionWithCli(codexCommand, session, prompt),
+    cli,
+    notify,
+    log
+  });
+  log(cli.available ? `Codex CLI recovery is available: ${cli.version}` : `Codex CLI recovery unavailable: ${cli.error}`);
+
+  let polling = false;
+  const pollRecovery = async () => {
+    if (polling || !recoveryController) return;
+    polling = true;
+    try {
+      await recoveryController.tick(readCodexSnapshot());
+    } catch (error) {
+      log("Session recovery poll failed", error);
+    } finally {
+      polling = false;
+    }
+  };
+  recoveryTimer = setInterval(pollRecovery, 5000);
+  recoveryTimer.unref?.();
+  await pollRecovery();
 }
 
 function getTopCenterPosition(windowBounds) {
@@ -391,6 +396,7 @@ app.whenReady().then(() => {
   log("App ready");
   createTray();
   createWindow();
+  initializeSessionRecovery().catch((error) => log("Session recovery initialization failed", error));
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -407,6 +413,10 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin" && isQuitting) app.quit();
 });
 
+app.on("before-quit", () => {
+  if (recoveryTimer) clearInterval(recoveryTimer);
+});
+
 process.on("uncaughtException", (error) => {
   log("Uncaught exception", error);
 });
@@ -417,7 +427,8 @@ process.on("unhandledRejection", (error) => {
 
 ipcMain.handle("codex:getSnapshot", async () => {
   try {
-    return readCodexSnapshot();
+    const snapshot = readCodexSnapshot();
+    return recoveryController ? recoveryController.decorateSnapshot(snapshot) : snapshot;
   } catch (error) {
     log("Snapshot read failed", error);
     return {
@@ -493,11 +504,15 @@ ipcMain.handle("codex:openProject", async (_event, workspacePath) => {
   }
 
   return new Promise((resolve) => {
-    const codexPath = findCodexExecutable();
-    const codex = spawn(codexPath, ["app", workspacePath], {
+    const codexCommand = findCodexCommand();
+    if (!codexCommand) {
+      resolve({ ok: false, error: "Standalone Codex CLI was not found." });
+      return;
+    }
+    const codex = spawn(codexCommand.command, [...codexCommand.prefixArgs, "app", workspacePath], {
       detached: true,
       stdio: "ignore",
-      shell: process.platform === "win32" && codexPath === "codex"
+      windowsHide: true
     });
 
     codex.once("error", (error) => {
@@ -524,7 +539,11 @@ ipcMain.handle("codex:resumeSession", async (_event, sessionId, workspacePath) =
   }
 
   return new Promise((resolve) => {
-    const codexPath = findCodexExecutable();
+    const codexCommand = findCodexCommand();
+    if (!codexCommand) {
+      resolve({ ok: false, error: "Standalone Codex CLI was not found." });
+      return;
+    }
     const resumeArgs = ["resume"];
     if (typeof workspacePath === "string" && workspacePath.trim() !== "" && workspacePath !== "Projectless") {
       resumeArgs.push("-C", workspacePath);
@@ -532,11 +551,11 @@ ipcMain.handle("codex:resumeSession", async (_event, sessionId, workspacePath) =
     resumeArgs.push(sessionId);
     const resumeProcess =
       process.platform === "win32"
-        ? spawn("cmd.exe", ["/d", "/s", "/c", `start "Codex Session" cmd.exe /k ${[codexPath, ...resumeArgs].map(quoteCmdArg).join(" ")}`], {
+        ? spawn("cmd.exe", ["/d", "/s", "/c", `start "Codex Session" cmd.exe /k ${[codexCommand.command, ...codexCommand.prefixArgs, ...resumeArgs].map(quoteCmdArg).join(" ")}`], {
             detached: true,
             stdio: "ignore"
           })
-        : spawn(codexPath, resumeArgs, {
+        : spawn(codexCommand.command, [...codexCommand.prefixArgs, ...resumeArgs], {
             detached: true,
             stdio: "inherit"
           });
@@ -574,6 +593,23 @@ ipcMain.handle("app:openProjectFolder", async (_event, workspacePath) => {
   }
 
   return { ok: true };
+});
+
+ipcMain.handle("recovery:getStatus", () => {
+  return recoveryController?.getStatus() || {
+    enabled: false,
+    cli: { available: false, path: null, version: null, error: "Recovery is still initializing." }
+  };
+});
+
+ipcMain.handle("recovery:setEnabled", (_event, enabled) => {
+  if (!recoveryController) return { ok: false, error: "Recovery is still initializing." };
+  return { ok: true, status: recoveryController.setEnabled(enabled) };
+});
+
+ipcMain.handle("recovery:retry", async (_event, sessionId) => {
+  if (!recoveryController) return { ok: false, error: "Recovery is still initializing." };
+  return await recoveryController.retry(sessionId);
 });
 
 ipcMain.handle("app:notify", (_event, payload) => {

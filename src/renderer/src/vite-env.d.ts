@@ -18,7 +18,37 @@ interface AirbarSession {
   file: string;
   lastType: string;
   lastMessage: string;
+  completion: {
+    turnId: string;
+    timestamp: string | null;
+    fingerprint: string;
+    error: { message: string; codexErrorInfo: string | null } | null;
+    hasLastAgentMessage: boolean;
+    isCurrent: boolean;
+  } | null;
+  hasLiveProcess: boolean;
+  recovery: AirbarRecoveryRecord | null;
   recentCommands: AirbarCommand[];
+}
+
+type AirbarRecoveryState = "scheduled" | "running" | "recovered" | "retryable_failed" | "permanent_failed" | "exhausted" | "cancelled";
+
+interface AirbarRecoveryRecord {
+  sessionId: string;
+  state: AirbarRecoveryState;
+  attemptCount: number;
+  updatedAt: number;
+  message: string;
+}
+
+interface AirbarRecoveryStatus {
+  enabled: boolean;
+  cli: {
+    available: boolean;
+    path: string | null;
+    version: string | null;
+    error: string | null;
+  };
 }
 
 interface AirbarProject {
@@ -33,6 +63,7 @@ interface AirbarSnapshot {
   codexHome: string;
   error?: string;
   projects: AirbarProject[];
+  recovery?: AirbarRecoveryStatus;
 }
 
 interface Window {
@@ -40,6 +71,9 @@ interface Window {
     getSnapshot: () => Promise<AirbarSnapshot>;
     openProject: (workspacePath: string) => Promise<{ ok: boolean; error?: string }>;
     resumeSession: (sessionId: string, workspacePath?: string) => Promise<{ ok: boolean; error?: string }>;
+    getRecoveryStatus: () => Promise<AirbarRecoveryStatus>;
+    setRecoveryEnabled: (enabled: boolean) => Promise<{ ok: boolean; status?: AirbarRecoveryStatus; error?: string }>;
+    retryRecovery: (sessionId: string) => Promise<{ ok: boolean; error?: string }>;
     openProjectFolder: (workspacePath: string) => Promise<{ ok: boolean; error?: string }>;
     minimize: () => Promise<void>;
     snapTopCenter: () => Promise<boolean>;

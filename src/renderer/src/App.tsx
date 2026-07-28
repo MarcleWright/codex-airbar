@@ -1,4 +1,4 @@
-import { CheckCheck, ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, FileText, FolderOpen, Magnet, Minus, Moon, Pin, PinOff, RefreshCw, Settings, Sun, Terminal, X } from "lucide-react";
+import { CheckCheck, ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, FileText, FolderOpen, Magnet, Minus, Moon, Pin, PinOff, RefreshCw, RotateCcw, Settings, Sun, Terminal, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "./theme-provider";
 import { Button } from "./components/ui/button";
@@ -23,7 +23,7 @@ const AUTO_HEIGHT_PROJECT_GAP = 6;
 const AUTO_HEIGHT_EMPTY_STATE = 82;
 const AUTO_HEIGHT_ALERT = 42;
 const COLLAPSED_SUMMARY_WIDTH = "min(420px, 64vw)";
-const SETTINGS_VIEW_HEIGHT = 226;
+const SETTINGS_VIEW_HEIGHT = 284;
 
 type AirbarThemeSurface = "classic" | "glass";
 
@@ -99,6 +99,7 @@ export function App() {
   const [isBarCollapsed, setIsBarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState<AirbarView>("projects");
   const [settings, setSettings] = useState<AirbarSettings>(() => readAirbarSettings());
+  const [recoveryStatus, setRecoveryStatus] = useState<AirbarRecoveryStatus | null>(null);
   const [clearedDoneSessions, setClearedDoneSessions] = useState<Record<string, string>>(() => {
     try {
       const saved = window.localStorage.getItem(CLEARED_DONE_STORAGE_KEY);
@@ -168,6 +169,7 @@ export function App() {
     try {
       const next = await window.airbar.getSnapshot();
       detectDoneTransitions(next);
+      if (next.recovery) setRecoveryStatus(next.recovery);
       setSnapshot(next);
     } catch (error) {
       setSnapshot({
@@ -235,6 +237,15 @@ export function App() {
   async function handleSnapTopCenter() {
     const next = await window.airbar.snapTopCenter();
     setTopCenterSnapped(next);
+  }
+
+  async function handleRecoveryToggle(enabled: boolean) {
+    const result = await window.airbar.setRecoveryEnabled(enabled);
+    if (!result.ok) {
+      setActionError(result.error || "Failed to update automatic recovery.");
+      return;
+    }
+    if (result.status) setRecoveryStatus(result.status);
   }
 
   return (
@@ -344,7 +355,9 @@ export function App() {
       {!isBarCollapsed && activeView === "settings" ? (
         <SettingsView
           settings={settings}
+          recoveryStatus={recoveryStatus}
           onSettingsChange={(nextSettings) => setSettings(nextSettings)}
+          onRecoveryToggle={handleRecoveryToggle}
         />
       ) : null}
     </div>
@@ -486,10 +499,14 @@ function StatusSummaryDots({
 
 function SettingsView({
   settings,
-  onSettingsChange
+  recoveryStatus,
+  onSettingsChange,
+  onRecoveryToggle
 }: {
   settings: AirbarSettings;
+  recoveryStatus: AirbarRecoveryStatus | null;
   onSettingsChange: (settings: AirbarSettings) => void;
+  onRecoveryToggle: (enabled: boolean) => void;
 }) {
   function updateSettings(next: Partial<AirbarSettings>) {
     onSettingsChange(normalizeAirbarSettings({ ...settings, ...next }));
@@ -522,6 +539,26 @@ function SettingsView({
                 Glass
               </Button>
             </div>
+          </div>
+        </Card>
+
+        <Card className="p-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[11px] font-medium leading-4">Auto recovery</div>
+              <div className="truncate text-[10px] leading-4 text-muted-foreground" title={recoveryStatus?.cli.path || recoveryStatus?.cli.error || "Checking Codex CLI"}>
+                {recoveryStatus?.cli.available ? recoveryStatus.cli.version || "Codex CLI ready" : recoveryStatus?.cli.error || "Checking Codex CLI"}
+              </div>
+            </div>
+            <label className="flex h-6 shrink-0 items-center gap-1.5 text-[10px]">
+              <input
+                type="checkbox"
+                checked={Boolean(recoveryStatus?.enabled)}
+                disabled={!recoveryStatus?.cli.available}
+                onChange={(event) => onRecoveryToggle(event.currentTarget.checked)}
+              />
+              <span>{recoveryStatus?.enabled ? "On" : "Off"}</span>
+            </label>
           </div>
         </Card>
 
@@ -725,7 +762,8 @@ function SessionRow({
   session: AirbarSession;
 }) {
   const command = session.recentCommands?.[0]?.command;
-  const message = session.lastMessage || command || "";
+  const recovery = session.recovery;
+  const message = recovery && recovery.state !== "recovered" ? recovery.message : session.lastMessage || command || "";
   const [actionError, setActionError] = useState<string | null>(null);
   const openAction = sessionOpenActions[SESSION_OPEN_ACTION];
   const OpenActionIcon = openAction.icon;
@@ -738,12 +776,27 @@ function SessionRow({
     }
   }
 
+  async function handleRecoveryRetry() {
+    setActionError(null);
+    const result = await window.airbar.retryRecovery(session.id);
+    if (!result.ok) setActionError(result.error || "Failed to schedule recovery retry.");
+  }
+
+  const canRetryRecovery = recovery && ["retryable_failed", "permanent_failed", "exhausted", "cancelled"].includes(recovery.state);
+  const recoveryTone = recovery?.state === "recovered"
+    ? "bg-emerald-400"
+    : recovery?.state === "running" || recovery?.state === "scheduled"
+      ? "bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.5)]"
+      : recovery
+        ? "bg-rose-400"
+        : statusTone[session.status];
+
   return (
     <div
       data-airbar-session-row
-      className="grid grid-cols-[8px_minmax(0,1fr)_20px] items-center gap-1.5 border-b border-border px-2 py-1 last:border-b-0"
+      className="grid grid-cols-[8px_minmax(0,1fr)_auto] items-center gap-1.5 border-b border-border px-2 py-1 last:border-b-0"
     >
-      <span className={cn("h-6 w-1 rounded-full self-center", statusTone[session.status])} />
+      <span className={cn("h-6 w-1 rounded-full self-center", recoveryTone)} title={recovery?.message} />
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
           <span className="shrink-0 truncate text-[11px] leading-4" title={session.title}>
@@ -756,16 +809,23 @@ function SessionRow({
         </div>
         {actionError ? <div className="mt-0.5 text-[9px] text-amber-300">{actionError}</div> : null}
       </div>
-      <Button
-        variant="secondary"
-        size="icon"
-        className="h-5 w-5 shrink-0 rounded-sm self-center"
-        title={openAction.title(session)}
-        onClick={handleSessionAction}
-        disabled={openAction.disabled(session)}
-      >
-        <OpenActionIcon className="h-3 w-3" />
-      </Button>
+      <div className="flex items-center gap-0.5">
+        {canRetryRecovery ? (
+          <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0 rounded-sm" title="Retry session recovery" onClick={handleRecoveryRetry}>
+            <RotateCcw className="h-3 w-3" />
+          </Button>
+        ) : null}
+        <Button
+          variant="secondary"
+          size="icon"
+          className="h-5 w-5 shrink-0 rounded-sm self-center"
+          title={openAction.title(session)}
+          onClick={handleSessionAction}
+          disabled={openAction.disabled(session)}
+        >
+          <OpenActionIcon className="h-3 w-3" />
+        </Button>
+      </div>
     </div>
   );
 }

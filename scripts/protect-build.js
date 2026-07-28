@@ -5,7 +5,7 @@ const JavaScriptObfuscator = require("javascript-obfuscator");
 const root = path.join(__dirname, "..");
 const sourceDir = path.join(root, "src");
 const outputDir = path.join(root, ".protected-src");
-const coreFiles = ["main.js", "preload.js", "status-reader.js"];
+const coreFiles = ["main.js", "preload.js", "status-reader.js", "codex-cli.js", "session-recovery.js"];
 
 const options = {
   compact: true,

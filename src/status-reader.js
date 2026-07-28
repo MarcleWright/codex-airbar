@@ -155,6 +155,48 @@ function parseEventLines(lines, limit) {
   return events;
 }
 
+function isActivityAfterCompletion(event) {
+  const type = event?.payload?.type || event?.type;
+  return (
+    type === "user_message" ||
+    type === "message" ||
+    type === "task_started" ||
+    type === "thread_rolled_back" ||
+    type === "turn_aborted" ||
+    type === "agent_message" ||
+    type === "agent_reasoning" ||
+    type === "reasoning" ||
+    type === "function_call" ||
+    type === "custom_tool_call" ||
+    type === "function_call_output" ||
+    type === "custom_tool_call_output"
+  );
+}
+
+function summarizeCompletion(events) {
+  const completionIndex = events.findLastIndex((event) => event?.payload?.type === "task_complete");
+  if (completionIndex === -1) return null;
+  const event = events[completionIndex];
+  const payload = event.payload || {};
+  const error = payload.error?.message
+    ? {
+        message: payload.error.message,
+        codexErrorInfo: payload.error.codex_error_info || null
+      }
+    : null;
+  const turnId = payload.turn_id || "unknown-turn";
+  const timestamp = event.timestamp || (payload.completed_at ? new Date(payload.completed_at * 1000).toISOString() : null);
+  const fingerprint = [turnId, timestamp || "unknown-time", error?.message || "success"].join("|");
+  return {
+    turnId,
+    timestamp,
+    fingerprint,
+    error,
+    hasLastAgentMessage: Boolean(payload.last_agent_message),
+    isCurrent: !events.slice(completionIndex + 1).some(isActivityAfterCompletion)
+  };
+}
+
 function summarizeLastEvents(filePath) {
   const headEvents = parseEventLines(readHeadLines(filePath), 80);
   const events = parseEventLines(readTailLines(filePath).slice(-40), 40);
@@ -197,7 +239,8 @@ function summarizeLastEvents(filePath) {
     hasRecentToolOutput: tailEvents.some((event) => {
       const type = event?.payload?.type;
       return type === "function_call_output" || type === "custom_tool_call_output";
-    })
+    }),
+    completion: summarizeCompletion(events)
   };
 }
 
@@ -394,7 +437,9 @@ function readProcessManager() {
     if (!row.conversationId) continue;
     const ageMs = now - Number(row.updatedAtMs || row.startedAtMs || 0);
     const active = ageMs >= 0 && ageMs < DONE_WINDOW_MS;
-    const existing = byThread.get(row.conversationId) || { recentCommands: [], hasRecentProcess: false };
+    const pid = Number(row.osPid || 0);
+    const live = pid > 0 && isProcessAlive(pid);
+    const existing = byThread.get(row.conversationId) || { recentCommands: [], hasRecentProcess: false, hasLiveProcess: false };
     existing.recentCommands.push({
       command: row.command || "",
       cwd: row.cwd || "",
@@ -402,9 +447,19 @@ function readProcessManager() {
       osPid: row.osPid || null
     });
     existing.hasRecentProcess = existing.hasRecentProcess || active;
+    existing.hasLiveProcess = existing.hasLiveProcess || live;
     byThread.set(row.conversationId, existing);
   }
   return byThread;
+}
+
+function isProcessAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function readGlobalState() {
@@ -506,6 +561,8 @@ function readCodexSnapshot() {
       file: file.path,
       lastType: eventSummary.lastPayloadType || eventSummary.lastType,
       lastMessage: eventSummary.lastMessage,
+      completion: eventSummary.completion,
+      hasLiveProcess: Boolean(processInfo?.hasLiveProcess),
       recentCommands: (processInfo?.recentCommands || []).slice(0, 3)
     };
 
@@ -540,4 +597,4 @@ function readCodexSnapshot() {
   };
 }
 
-module.exports = { readCodexSnapshot };
+module.exports = { readCodexSnapshot, summarizeCompletion };
