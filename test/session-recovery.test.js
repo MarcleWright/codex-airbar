@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { OVERLOAD_CONTINUE_PROMPT, OVERLOAD_GRACE_MS, SessionRecoveryController } = require("../src/session-recovery");
+const { OVERLOAD_CONTINUE_PROMPT, SessionRecoveryController } = require("../src/session-recovery");
 
 const ERROR_MESSAGE = "stream disconnected before completion: error sending request for url (https://api.openai-hk.com/v1/responses)";
 
@@ -69,8 +69,6 @@ test("schedules once across repeated snapshots and reaches recovered", async (t)
 test("cancels when the failed-turn fingerprint changes before spawn", async (t) => {
   const item = fixture();
   t.after(() => fs.rmSync(item.directory, { recursive: true, force: true }));
-  await item.controller.tick(snapshot());
-  item.setNow(12000);
   item.setSnapshot(snapshot("turn-2|time|error"));
   await item.controller.tick(snapshot());
   assert.equal(Object.values(item.controller.store.records)[0].state, "cancelled");
@@ -125,7 +123,7 @@ test("does not automatically schedule an old stream failure", async (t) => {
   assert.equal(Object.keys(item.controller.store.records).length, 0);
 });
 
-test("schedules a server-overloaded failure with a longer grace period", async (t) => {
+test("starts a server-overloaded recovery without an observation delay", async (t) => {
   let prompt = null;
   const item = fixture(async (_session, nextPrompt) => {
     prompt = nextPrompt;
@@ -143,15 +141,12 @@ test("schedules a server-overloaded failure with a longer grace period", async (
   await item.controller.tick(overloaded);
   const record = Object.values(item.controller.store.records)[0];
   assert.equal(record.recoveryKind, "server_overloaded");
-  assert.equal(record.nextAttemptAt, 1000 + OVERLOAD_GRACE_MS);
-
-  item.setNow(1000 + OVERLOAD_GRACE_MS);
-  await item.controller.tick(overloaded);
+  assert.equal(record.attemptCount, 1);
   assert.equal(prompt, OVERLOAD_CONTINUE_PROMPT);
   assert.equal(record.state, "recovered");
 });
 
-test("exhausts a server-overloaded recovery after three attempts", async (t) => {
+test("retries a server-overloaded recovery on each poll without backoff", async (t) => {
   let calls = 0;
   const item = fixture(async () => {
     calls += 1;
@@ -173,13 +168,9 @@ test("exhausts a server-overloaded recovery after three attempts", async (t) => 
 
   await item.controller.tick(overloaded);
   const record = Object.values(item.controller.store.records)[0];
-  item.setNow(31000);
+  assert.equal(record.nextAttemptAt, 1000);
   await item.controller.tick(overloaded);
-  assert.equal(record.nextAttemptAt, 91000);
-  item.setNow(91000);
-  await item.controller.tick(overloaded);
-  assert.equal(record.nextAttemptAt, 271000);
-  item.setNow(271000);
+  assert.equal(record.nextAttemptAt, 1000);
   await item.controller.tick(overloaded);
 
   assert.equal(calls, 3);

@@ -3,12 +3,12 @@ const path = require("node:path");
 const { classifyRecoverableError } = require("./codex-cli");
 
 const STORE_VERSION = 1;
-const GRACE_MS = 10 * 1000;
+const GRACE_MS = 0;
 const MAX_FAILURE_AGE_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
-const RETRY_DELAYS_MS = [15 * 1000, 45 * 1000];
-const OVERLOAD_GRACE_MS = 30 * 1000;
-const OVERLOAD_RETRY_DELAYS_MS = [60 * 1000, 180 * 1000];
+const RETRY_DELAYS_MS = [0, 0];
+const OVERLOAD_GRACE_MS = 0;
+const OVERLOAD_RETRY_DELAYS_MS = [0, 0];
 const TERMINAL_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const TERMINAL_STATES = new Set(["recovered", "permanent_failed", "exhausted", "cancelled"]);
 const RETRYABLE_STATES = new Set(["retryable_failed", "permanent_failed", "exhausted", "cancelled"]);

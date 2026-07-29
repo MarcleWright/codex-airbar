@@ -21,7 +21,8 @@ Status: Done
 Summary:
 
 - Added structured `server_overloaded` failures and the explicit "Selected model is at capacity" compatibility message to the automatic-recovery allowlist.
-- Added a capacity-specific continuation prompt, a 30-second grace period, and retry delays of 60 and 180 seconds for a maximum of three attempts.
+- Added a capacity-specific continuation prompt with immediate recovery and no configured retry backoff; the five-second recovery poll paces a maximum of three attempts.
+- Removed the stream-interruption observation delay as well; every allowlisted failure now attempts continuation immediately after the pre-spawn freshness check.
 - Kept authentication, generic API, and unclassified errors outside automatic recovery.
 
 ### 2026-07-29 Git Worktree Project Identity

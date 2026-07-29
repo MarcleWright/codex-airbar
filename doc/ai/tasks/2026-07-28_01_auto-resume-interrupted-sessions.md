@@ -153,7 +153,7 @@ Airbar currently detects `task_complete` but treats it as a normal `done` signal
 - Added standalone CLI discovery that prefers `CODEX_AIRBAR_CODEX_PATH` and `PATH`, skips Windows Store aliases, and unwraps the installed npm `.cmd` shim to Node plus `codex.js` without shell interpolation.
 - Added CLI capability probes for `--version` and `exec resume --help`.
 - Added bounded `--json` execution with terminal-turn success semantics, transport-error classification, output limits, and process timeout handling.
-- Added an Electron main-process recovery controller with a 10-second grace period, a 15-minute automatic recovery window, three attempts, backoff, in-process leases, stable-fingerprint confirmation, and live-PID checks.
+- Added an Electron main-process recovery controller with a 15-minute automatic recovery window, three immediate poll-paced attempts, in-process leases, stable-fingerprint confirmation, and live-PID checks.
 - Added versioned Airbar-owned recovery persistence under Electron `userData`, atomic replacement, 30-day terminal-record pruning, and restart suppression for interrupted `running` attempts.
 - Added explicit renderer controls. Automatic recovery defaults to off, reports CLI availability, shows recovery state on session rows, and supports manual retry for detected or exhausted failures.
 - Added IPC and preload boundaries for recovery settings and manual retry.
@@ -196,7 +196,7 @@ Airbar currently detects `task_complete` but treats it as a normal `done` signal
 
 - Avoid broad automatic retries based only on inactivity.
 - Avoid treating every `codex_error_info: other` value as recoverable.
-- Treat structured `server_overloaded` model-capacity failures as recoverable with a longer grace period and retry backoff than stream interruptions.
+- Treat structured `server_overloaded` model-capacity failures as immediately recoverable without configured retry backoff; rely on polling cadence and the three-attempt circuit breaker.
 - Avoid coupling process orchestration directly into the read-only status reader.
 
 ### Follow-up
