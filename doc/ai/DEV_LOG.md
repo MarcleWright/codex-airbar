@@ -2,6 +2,16 @@
 
 ## Recent
 
+### 2026-07-29 Model Capacity Recovery
+
+Status: Done
+
+Summary:
+
+- Added structured `server_overloaded` failures and the explicit "Selected model is at capacity" compatibility message to the automatic-recovery allowlist.
+- Added a capacity-specific continuation prompt, a 30-second grace period, and retry delays of 60 and 180 seconds for a maximum of three attempts.
+- Kept authentication, generic API, and unclassified errors outside automatic recovery.
+
 ### 2026-07-29 Git Worktree Project Identity
 
 Status: Done

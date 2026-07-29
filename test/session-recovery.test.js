@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { SessionRecoveryController } = require("../src/session-recovery");
+const { OVERLOAD_CONTINUE_PROMPT, OVERLOAD_GRACE_MS, SessionRecoveryController } = require("../src/session-recovery");
 
 const ERROR_MESSAGE = "stream disconnected before completion: error sending request for url (https://api.openai-hk.com/v1/responses)";
 
@@ -21,7 +21,7 @@ function snapshot(fingerprint = "turn-1|time|error", options = {}) {
           fingerprint,
           timestamp: options.timestamp || new Date(1000).toISOString(),
           isCurrent: options.isCurrent !== false,
-          error: { message: ERROR_MESSAGE }
+          error: options.error || { message: ERROR_MESSAGE }
         }
       }]
     }]
@@ -123,4 +123,65 @@ test("does not automatically schedule an old stream failure", async (t) => {
   item.setSnapshot(oldSnapshot);
   await item.controller.tick(oldSnapshot);
   assert.equal(Object.keys(item.controller.store.records).length, 0);
+});
+
+test("schedules a server-overloaded failure with a longer grace period", async (t) => {
+  let prompt = null;
+  const item = fixture(async (_session, nextPrompt) => {
+    prompt = nextPrompt;
+    return { recovered: true };
+  });
+  t.after(() => fs.rmSync(item.directory, { recursive: true, force: true }));
+  const overloaded = snapshot("turn-overloaded|time|error", {
+    error: {
+      message: "Selected model is at capacity. Please try a different model.",
+      codexErrorInfo: "server_overloaded"
+    }
+  });
+  item.setSnapshot(overloaded);
+
+  await item.controller.tick(overloaded);
+  const record = Object.values(item.controller.store.records)[0];
+  assert.equal(record.recoveryKind, "server_overloaded");
+  assert.equal(record.nextAttemptAt, 1000 + OVERLOAD_GRACE_MS);
+
+  item.setNow(1000 + OVERLOAD_GRACE_MS);
+  await item.controller.tick(overloaded);
+  assert.equal(prompt, OVERLOAD_CONTINUE_PROMPT);
+  assert.equal(record.state, "recovered");
+});
+
+test("exhausts a server-overloaded recovery after three attempts", async (t) => {
+  let calls = 0;
+  const item = fixture(async () => {
+    calls += 1;
+    return {
+      recovered: false,
+      retryable: true,
+      recoveryKind: "server_overloaded",
+      message: "Selected model is at capacity. Please try a different model."
+    };
+  });
+  t.after(() => fs.rmSync(item.directory, { recursive: true, force: true }));
+  const overloaded = snapshot("turn-overloaded|time|error", {
+    error: {
+      message: "Selected model is at capacity. Please try a different model.",
+      codexErrorInfo: "server_overloaded"
+    }
+  });
+  item.setSnapshot(overloaded);
+
+  await item.controller.tick(overloaded);
+  const record = Object.values(item.controller.store.records)[0];
+  item.setNow(31000);
+  await item.controller.tick(overloaded);
+  assert.equal(record.nextAttemptAt, 91000);
+  item.setNow(91000);
+  await item.controller.tick(overloaded);
+  assert.equal(record.nextAttemptAt, 271000);
+  item.setNow(271000);
+  await item.controller.tick(overloaded);
+
+  assert.equal(calls, 3);
+  assert.equal(record.state, "exhausted");
 });

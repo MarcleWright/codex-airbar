@@ -196,6 +196,7 @@ Airbar currently detects `task_complete` but treats it as a normal `done` signal
 
 - Avoid broad automatic retries based only on inactivity.
 - Avoid treating every `codex_error_info: other` value as recoverable.
+- Treat structured `server_overloaded` model-capacity failures as recoverable with a longer grace period and retry backoff than stream interruptions.
 - Avoid coupling process orchestration directly into the read-only status reader.
 
 ### Follow-up

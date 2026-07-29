@@ -4,6 +4,7 @@ const { spawn } = require("node:child_process");
 
 const MAX_CAPTURE_BYTES = 256 * 1024;
 const TRANSPORT_ERROR_PATTERN = /stream disconnected before completion:\s*error sending request for url/i;
+const MODEL_CAPACITY_PATTERN = /selected model is at capacity\.?(?:\s*please try a different model\.?)?/i;
 
 function safeStat(filePath) {
   try {
@@ -15,6 +16,15 @@ function safeStat(filePath) {
 
 function isRecoverableTransportError(message) {
   return typeof message === "string" && TRANSPORT_ERROR_PATTERN.test(message);
+}
+
+function classifyRecoverableError(error) {
+  const details = typeof error === "string" ? { message: error, codexErrorInfo: null } : error || {};
+  if (isRecoverableTransportError(details.message)) return { kind: "transport_interrupted" };
+  if (details.codexErrorInfo === "server_overloaded" || MODEL_CAPACITY_PATTERN.test(details.message || "")) {
+    return { kind: "server_overloaded" };
+  }
+  return null;
 }
 
 function commandSpecForCandidate(candidate) {
@@ -117,9 +127,15 @@ function parseJsonEvents(stdout) {
     });
 }
 
-function eventError(event) {
+function eventErrorDetails(event) {
   const type = event?.type || event?.payload?.type;
-  return event?.error?.message || event?.payload?.error?.message || event?.turn?.error?.message || (type === "error" ? event?.message || event?.payload?.message : null) || null;
+  const error = event?.error || event?.payload?.error || event?.turn?.error || null;
+  const message = error?.message || (type === "error" ? event?.message || event?.payload?.message : null) || null;
+  if (!message) return null;
+  return {
+    message,
+    codexErrorInfo: error?.codex_error_info || error?.codexErrorInfo || event?.codex_error_info || event?.codexErrorInfo || null
+  };
 }
 
 function isTerminalTurnEvent(event) {
@@ -130,15 +146,19 @@ function isTerminalTurnEvent(event) {
 function interpretExecResult(result) {
   const events = parseJsonEvents(result.stdout);
   const terminalEvents = events.filter(isTerminalTurnEvent);
-  const errors = events.map(eventError).filter(Boolean);
+  const errorDetails = events.map(eventErrorDetails).filter(Boolean);
+  const errors = errorDetails.map((error) => error.message);
   if (result.stderr) errors.push(result.stderr.trim());
   const terminal = terminalEvents.at(-1);
-  const terminalError = eventError(terminal);
+  const terminalErrorDetails = eventErrorDetails(terminal);
+  const terminalError = terminalErrorDetails?.message || null;
   const message = terminalError || errors.at(-1) || (result.timedOut ? "Codex CLI recovery timed out." : result.exitCode === 0 ? "Codex CLI exited without a terminal turn event." : `Codex CLI exited with code ${result.exitCode}.`);
   const recovered = result.exitCode === 0 && Boolean(terminal) && !terminalError;
+  const recovery = classifyRecoverableError(terminalErrorDetails || errorDetails.at(-1) || message);
   return {
     recovered,
-    retryable: result.spawnError || result.timedOut || isRecoverableTransportError(message),
+    retryable: result.spawnError || result.timedOut || Boolean(recovery),
+    recoveryKind: recovery?.kind || null,
     message,
     exitCode: result.exitCode,
     terminalEvent: terminal || null
@@ -168,6 +188,7 @@ async function resumeSession(spec, session, prompt) {
 }
 
 module.exports = {
+  classifyRecoverableError,
   commandSpecForCandidate,
   interpretExecResult,
   isRecoverableTransportError,

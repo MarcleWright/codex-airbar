@@ -1,15 +1,36 @@
 const fs = require("node:fs");
 const path = require("node:path");
-const { isRecoverableTransportError } = require("./codex-cli");
+const { classifyRecoverableError } = require("./codex-cli");
 
 const STORE_VERSION = 1;
 const GRACE_MS = 10 * 1000;
 const MAX_FAILURE_AGE_MS = 15 * 60 * 1000;
-const RETRY_DELAYS_MS = [15 * 1000, 45 * 1000, 120 * 1000];
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAYS_MS = [15 * 1000, 45 * 1000];
+const OVERLOAD_GRACE_MS = 30 * 1000;
+const OVERLOAD_RETRY_DELAYS_MS = [60 * 1000, 180 * 1000];
 const TERMINAL_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const TERMINAL_STATES = new Set(["recovered", "permanent_failed", "exhausted", "cancelled"]);
 const RETRYABLE_STATES = new Set(["retryable_failed", "permanent_failed", "exhausted", "cancelled"]);
 const CONTINUE_PROMPT = "The previous turn ended because its response stream was interrupted. Continue the original task from the available session context. Re-check existing work before repeating any action.";
+const OVERLOAD_CONTINUE_PROMPT = "The previous turn ended because the selected model was temporarily at capacity. Continue the original task from the available session context. Re-check existing work before repeating any action.";
+
+function recoveryPolicy(kind) {
+  if (kind === "server_overloaded") {
+    return {
+      graceMs: OVERLOAD_GRACE_MS,
+      retryDelaysMs: OVERLOAD_RETRY_DELAYS_MS,
+      prompt: OVERLOAD_CONTINUE_PROMPT,
+      detectedMessage: "Recoverable model-capacity failure detected."
+    };
+  }
+  return {
+    graceMs: GRACE_MS,
+    retryDelaysMs: RETRY_DELAYS_MS,
+    prompt: CONTINUE_PROMPT,
+    detectedMessage: "Recoverable stream interruption detected."
+  };
+}
 
 function emptyStore() {
   return { version: STORE_VERSION, enabled: false, records: {} };
@@ -51,9 +72,9 @@ function eligibleFailure(session, now = Date.now(), options = {}) {
   const completedAt = new Date(session?.completion?.timestamp || "").getTime();
   const recent = Number.isFinite(completedAt) && now - completedAt >= -60 * 1000 && now - completedAt <= MAX_FAILURE_AGE_MS;
   return Boolean(
-    session?.completion?.isCurrent &&
+      session?.completion?.isCurrent &&
       session.completion.error?.message &&
-      isRecoverableTransportError(session.completion.error.message) &&
+      classifyRecoverableError(session.completion.error) &&
       (options.ignoreAge || recent)
   );
 }
@@ -86,8 +107,9 @@ class SessionRecoveryController {
     if (this.store.enabled) {
       for (const record of Object.values(this.store.records)) {
         if (record.state === "retryable_failed") {
+          const policy = recoveryPolicy(record.recoveryKind);
           record.state = "scheduled";
-          record.nextAttemptAt = this.now() + GRACE_MS;
+          record.nextAttemptAt = this.now() + policy.graceMs;
           record.updatedAt = this.now();
         }
       }
@@ -145,17 +167,20 @@ class SessionRecoveryController {
       if (activeRecord) continue;
       const key = recoveryKey(session);
       if (!this.store.records[key]) {
+        const recoveryKind = classifyRecoverableError(session.completion.error).kind;
+        const policy = recoveryPolicy(recoveryKind);
         this.store.records[key] = {
           key,
           sessionId: session.id,
           fingerprint: session.completion.fingerprint,
           currentFingerprint: session.completion.fingerprint,
+          recoveryKind,
           state: this.store.enabled && this.cli.available ? "scheduled" : "retryable_failed",
           attemptCount: 0,
           detectedAt: now,
-          nextAttemptAt: now + GRACE_MS,
+          nextAttemptAt: now + policy.graceMs,
           updatedAt: now,
-          message: "Recoverable stream interruption detected."
+          message: policy.detectedMessage
         };
         this.persist();
       }
@@ -201,7 +226,8 @@ class SessionRecoveryController {
     record.message = `Recovery attempt ${record.attemptCount} is running.`;
     this.persist();
     try {
-      const result = await this.runResume(session, CONTINUE_PROMPT);
+      const policy = recoveryPolicy(record.recoveryKind);
+      const result = await this.runResume(session, policy.prompt);
       if (result.recovered) {
         this.finish(record, "recovered", "The interrupted session continued successfully.");
         this.notify("Codex session recovered", session.title || session.id);
@@ -213,27 +239,30 @@ class SessionRecoveryController {
         this.notify("Codex session needs attention", session.title || session.id);
         return;
       }
+      if (result.recoveryKind) record.recoveryKind = result.recoveryKind;
       const latestSession = flattenSessions(this.readSnapshot()).find((candidate) => candidate.id === record.sessionId);
       if (eligibleFailure(latestSession, this.now(), options)) {
         record.currentFingerprint = latestSession.completion.fingerprint;
       }
-      if (record.attemptCount >= RETRY_DELAYS_MS.length) {
+      const retryDelaysMs = recoveryPolicy(record.recoveryKind).retryDelaysMs;
+      if (record.attemptCount >= MAX_ATTEMPTS) {
         this.finish(record, "exhausted", result.message);
         this.notify("Codex recovery retries exhausted", session.title || session.id);
         return;
       }
       record.state = "scheduled";
-      record.nextAttemptAt = this.now() + RETRY_DELAYS_MS[record.attemptCount - 1];
+      record.nextAttemptAt = this.now() + retryDelaysMs[record.attemptCount - 1];
       record.updatedAt = this.now();
       record.message = result.message;
       this.persist();
     } catch (error) {
       this.log("Session recovery attempt failed", error);
-      if (record.attemptCount >= RETRY_DELAYS_MS.length) {
+      const retryDelaysMs = recoveryPolicy(record.recoveryKind).retryDelaysMs;
+      if (record.attemptCount >= MAX_ATTEMPTS) {
         this.finish(record, "exhausted", error.message || String(error));
       } else {
         record.state = "scheduled";
-        record.nextAttemptAt = this.now() + RETRY_DELAYS_MS[record.attemptCount - 1];
+        record.nextAttemptAt = this.now() + retryDelaysMs[record.attemptCount - 1];
         record.updatedAt = this.now();
         record.message = error.message || String(error);
         this.persist();
@@ -267,9 +296,13 @@ module.exports = {
   CONTINUE_PROMPT,
   GRACE_MS,
   MAX_FAILURE_AGE_MS,
+  OVERLOAD_CONTINUE_PROMPT,
+  OVERLOAD_GRACE_MS,
+  OVERLOAD_RETRY_DELAYS_MS,
   SessionRecoveryController,
   eligibleFailure,
   loadStore,
   recoveryKey,
+  recoveryPolicy,
   saveStoreAtomic
 };
