@@ -2,6 +2,17 @@
 
 ## Recent
 
+### 2026-07-29 Git Worktree Project Identity
+
+Status: Done
+
+Summary:
+
+- Kept main and linked Git worktrees as separate project cards while resolving their shared repository through `.git` pointer files and `commondir`.
+- Read the desktop-assigned worktree name from `local-projects` and `thread-project-assignments` instead of deriving it from the duplicated checkout directory name.
+- Preserved each session's concrete workspace for open and resume actions.
+- Added a compact branch label for linked-worktree sessions and a regression fixture for Git worktree metadata.
+
 ### 2026-07-29 Session Status False-Positive Fix
 
 Status: Done

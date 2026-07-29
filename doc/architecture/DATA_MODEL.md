@@ -31,6 +31,8 @@ The app does not own a persistent database. It builds an in-memory snapshot from
 - `lastType`: latest known event payload/type.
 - `lastMessage`: short extracted event message when available.
 - `recentCommands`: recent process-manager commands associated with the session.
+- `repositoryWorkspace`: canonical main repository workspace shared by linked Git worktrees.
+- `isWorktree` and `worktreeBranch`: identify sessions running from a linked worktree without replacing their actionable `workspace` path.
 
 Current limitation:
 
@@ -42,6 +44,9 @@ Future source expansion must add an explicit `kind` such as `codex`, `chat`, or 
 ## Relationships
 
 - One project contains many sessions.
+- A main Git worktree and each linked worktree remain separate Airbar projects keyed by their concrete workspace paths.
+- Shared Git common-directory metadata records their repository relationship without merging their project cards.
+- Desktop `local-projects` and `thread-project-assignments` provide the user-visible worktree project name when available.
 - One session is associated with one workspace for display purposes.
 - Multiple rollout files can exist over time; the MVP treats recent rollout files as sessions by parsed thread id.
 

@@ -1,4 +1,4 @@
-import { CheckCheck, ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, FileText, FolderOpen, Magnet, Minus, Moon, Pin, PinOff, RefreshCw, RotateCcw, Settings, Sun, Terminal, X } from "lucide-react";
+import { CheckCheck, ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, FileText, FolderOpen, GitBranch, Magnet, Minus, Moon, Pin, PinOff, RefreshCw, RotateCcw, Settings, Sun, Terminal, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "./theme-provider";
 import { Button } from "./components/ui/button";
@@ -802,6 +802,15 @@ function SessionRow({
           <span className="shrink-0 truncate text-[11px] leading-4" title={session.title}>
             {session.title}
           </span>
+          {session.isWorktree ? (
+            <span
+              className="flex max-w-28 shrink min-w-0 items-center gap-0.5 text-[9px] leading-4 text-muted-foreground"
+              title={`Worktree: ${session.worktreeBranch || session.workspace}`}
+            >
+              <GitBranch className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate">{session.worktreeBranch?.replace(/^codex\//, "") || "worktree"}</span>
+            </span>
+          ) : null}
           <span className="shrink-0 text-[9px] leading-4 text-muted-foreground" title={new Date(session.updatedAt).toLocaleString()}>
             {formatElapsed(session.updatedAt)}
           </span>

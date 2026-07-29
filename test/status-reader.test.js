@@ -4,7 +4,9 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const {
+  projectNameForThread,
   statusForSession,
+  resolveRepositoryIdentity,
   summarizeCompletion,
   summarizeLastEvents,
   summarizeProcessRows
@@ -113,5 +115,48 @@ test("keeps a confirmed live process active regardless of command duration", () 
   assert.equal(
     statusForSession({ mtimeMs: now - 25 * 60 * 1000 }, {}, processInfo, now),
     "working"
+  );
+});
+
+test("maps a linked worktree to its shared repository while retaining its branch", (t) => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-airbar-worktree-"));
+  const repository = path.join(tempDir, "repository");
+  const commonGitDir = path.join(repository, ".git");
+  const worktree = path.join(tempDir, "worktrees", "canvas");
+  const worktreeGitDir = path.join(commonGitDir, "worktrees", "canvas");
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }));
+
+  fs.mkdirSync(worktreeGitDir, { recursive: true });
+  fs.mkdirSync(worktree, { recursive: true });
+  fs.writeFileSync(path.join(worktree, ".git"), `gitdir: ${worktreeGitDir}\n`);
+  fs.writeFileSync(path.join(worktreeGitDir, "commondir"), "../..\n");
+  fs.writeFileSync(path.join(worktreeGitDir, "HEAD"), "ref: refs/heads/codex/canvas-content\n");
+
+  const mainIdentity = resolveRepositoryIdentity(repository);
+  const worktreeIdentity = resolveRepositoryIdentity(worktree);
+
+  assert.equal(worktreeIdentity.key, mainIdentity.key);
+  assert.equal(worktreeIdentity.workspace, repository);
+  assert.equal(worktreeIdentity.isWorktree, true);
+  assert.equal(worktreeIdentity.branch, "codex/canvas-content");
+});
+
+test("uses the desktop project name assigned to a worktree thread", () => {
+  const threadId = "thread-canvas";
+  const globalState = {
+    "local-projects": {
+      "project-canvas": {
+        name: "auto_design_Agent_CANVAS",
+        rootPaths: ["C:\\Users\\Freshman\\.codex\\worktrees\\86d3\\auto_design_Agent"]
+      }
+    },
+    "thread-project-assignments": {
+      [threadId]: { projectKind: "local", projectId: "project-canvas" }
+    }
+  };
+
+  assert.equal(
+    projectNameForThread(threadId, globalState, null, globalState["local-projects"]["project-canvas"].rootPaths[0]),
+    "auto_design_Agent_CANVAS"
   );
 });

@@ -32,6 +32,63 @@ function normalizeCandidatePath(filePath) {
   return filePath.replace(/\//g, path.sep).trim();
 }
 
+function normalizedPathKey(filePath) {
+  const resolved = path.resolve(filePath);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+
+function safeReadText(filePath) {
+  try {
+    return fs.readFileSync(filePath, "utf8").trim();
+  } catch {
+    return "";
+  }
+}
+
+function resolveRepositoryIdentity(workspace) {
+  const fallback = {
+    key: workspace,
+    workspace,
+    isWorktree: false,
+    branch: null
+  };
+  if (!workspace || workspace === "Projectless") return fallback;
+
+  const dotGitPath = path.join(workspace, ".git");
+  const dotGitStat = safeStat(dotGitPath);
+  if (!dotGitStat) return fallback;
+
+  let gitDir = dotGitPath;
+  let commonGitDir = dotGitStat.isDirectory() ? dotGitPath : "";
+  if (dotGitStat.isFile()) {
+    const match = safeReadText(dotGitPath).match(/^gitdir:\s*(.+)$/i);
+    if (!match) return fallback;
+    gitDir = path.resolve(workspace, normalizeCandidatePath(match[1]));
+    const commonDirValue = safeReadText(path.join(gitDir, "commondir"));
+    if (commonDirValue) commonGitDir = path.resolve(gitDir, normalizeCandidatePath(commonDirValue));
+  }
+
+  const repositoryWorkspace = path.basename(commonGitDir).toLowerCase() === ".git"
+    ? path.dirname(commonGitDir)
+    : workspace;
+  const head = safeReadText(path.join(gitDir, "HEAD"));
+  const branchMatch = head.match(/^ref:\s*refs\/heads\/(.+)$/);
+  return {
+    key: normalizedPathKey(repositoryWorkspace),
+    workspace: repositoryWorkspace,
+    isWorktree: normalizedPathKey(workspace) !== normalizedPathKey(repositoryWorkspace),
+    branch: branchMatch?.[1] || null
+  };
+}
+
+function projectNameForThread(threadId, globalState, markerProject, workspace) {
+  if (markerProject) return markerProject;
+  const assignment = globalState?.["thread-project-assignments"]?.[threadId];
+  const localProject = assignment?.projectId ? globalState?.["local-projects"]?.[assignment.projectId] : null;
+  if (typeof localProject?.name === "string" && localProject.name.trim()) return localProject.name.trim();
+  return workspace === "Projectless" ? "Projectless" : path.basename(workspace);
+}
+
 function findWorkspaceRoot(filePath) {
   const normalized = normalizeCandidatePath(filePath);
   if (!normalized) return "";
@@ -570,8 +627,10 @@ function readCodexSnapshot() {
     const processInfo = processes.get(threadId) || null;
     const eventSummary = summarizeLastEvents(file.path);
     const workspace = workspaceForThread(threadId, globalState, processInfo, eventSummary);
+    const repository = resolveRepositoryIdentity(workspace);
     const markerProject = eventSummary?.airbarMarker?.project;
-    const projectName = markerProject || (workspace === "Projectless" ? "Projectless" : path.basename(workspace));
+    const projectName = projectNameForThread(threadId, globalState, markerProject, workspace);
+    const projectKey = workspace === "Projectless" ? workspace : normalizedPathKey(workspace);
     const status = statusForSession(file, eventSummary, processInfo);
     const session = {
       id: threadId,
@@ -579,6 +638,9 @@ function readCodexSnapshot() {
       status,
       updatedAt: new Date(file.mtimeMs).toISOString(),
       workspace,
+      repositoryWorkspace: repository.workspace,
+      isWorktree: repository.isWorktree,
+      worktreeBranch: repository.branch,
       file: file.path,
       lastType: eventSummary.lastPayloadType || eventSummary.lastType,
       lastMessage: eventSummary.lastMessage,
@@ -587,15 +649,15 @@ function readCodexSnapshot() {
       recentCommands: (processInfo?.recentCommands || []).slice(0, 3)
     };
 
-    if (!projects.has(workspace)) {
-      projects.set(workspace, {
+    if (!projects.has(projectKey)) {
+      projects.set(projectKey, {
         workspace,
         name: projectName,
         sessions: [],
         counts: { working: 0, done: 0, idle: 0 }
       });
     }
-    const project = projects.get(workspace);
+    const project = projects.get(projectKey);
     project.sessions.push(session);
     project.counts[status] += 1;
   }
@@ -620,6 +682,8 @@ function readCodexSnapshot() {
 
 module.exports = {
   readCodexSnapshot,
+  projectNameForThread,
+  resolveRepositoryIdentity,
   statusForSession,
   summarizeCompletion,
   summarizeLastEvents,

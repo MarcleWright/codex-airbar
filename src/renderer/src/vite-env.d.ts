@@ -15,6 +15,9 @@ interface AirbarSession {
   status: AirbarStatus;
   updatedAt: string;
   workspace: string;
+  repositoryWorkspace: string;
+  isWorktree: boolean;
+  worktreeBranch: string | null;
   file: string;
   lastType: string;
   lastMessage: string;
