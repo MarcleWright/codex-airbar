@@ -32,6 +32,13 @@ The app does not own a persistent database. It builds an in-memory snapshot from
 - `lastMessage`: short extracted event message when available.
 - `recentCommands`: recent process-manager commands associated with the session.
 
+Current limitation:
+
+- The snapshot does not expose a conversation-kind field because `session_index.jsonl` contains title/index data but no kind, and the current collector only ingests rollout-backed local Codex sessions.
+- `Projectless` is a workspace-attribution result and must never be treated as a proxy for ordinary ChatGPT chat.
+
+Future source expansion must add an explicit `kind` such as `codex`, `chat`, or `unknown` before applying lifecycle rules. `codex` can use task-oriented `working` / `done` / `idle`; `chat` requires response-oriented activity states; `unknown` must not emit completion notifications or enter automatic recovery.
+
 ## Relationships
 
 - One project contains many sessions.
@@ -43,6 +50,7 @@ The app does not own a persistent database. It builds an in-memory snapshot from
 - Local Codex state is an external source of truth and may change while being read.
 - Partial JSONL lines must be ignored safely.
 - Status is inferred, not authoritative.
+- Status semantics are valid only for the conversation kind and source that produced the evidence.
 - The app must not mutate Codex state files.
 
 ## Source Of Truth

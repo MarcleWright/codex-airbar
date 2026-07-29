@@ -34,6 +34,46 @@ Codex Airbar is a local Electron app that watches Codex session metadata and dis
 5. Snapshot returns grouped projects and sessions.
 6. Renderer updates counts, project lists, and notifications.
 
+## Source Coverage Boundary
+
+- The current collector reads local rollout-backed Codex sessions under `%USERPROFILE%\.codex`; it does not ingest the full Recent list from the unified ChatGPT desktop application.
+- `session_index.jsonl` provides ids, titles, and update times but no conversation kind. Rollout metadata on this machine identifies the collected records as Codex Desktop sessions, but that local format remains implementation-owned.
+- The unified desktop shell does not imply a unified storage or lifecycle contract. Official product guidance keeps Chat/Work conversations and Codex developer history as distinct experiences even though they share one application.
+- General ChatGPT conversations must not enter the Codex status pipeline until a supported integration provides both an authoritative kind and per-turn lifecycle evidence.
+- If a future source introduces `chat` or `unknown`, `status-reader.js` must route them through kind-specific inference rather than applying Codex `task_complete`, `done`, or recovery rules.
+
+## Future Session Relay Direction
+
+Airbar can plausibly grow from a monitor into a lightweight session relay, but the relay should use Codex CLI entry points rather than mutating Codex-owned local state.
+
+Observed local CLI capability:
+
+```powershell
+codex exec resume <SESSION_ID> "<PROMPT>"
+```
+
+or, for larger prompts:
+
+```powershell
+"prompt text" | codex exec resume <SESSION_ID> -
+```
+
+Potential planner/coder flow:
+
+1. Airbar reads planner and coder sessions through the existing read-only snapshot path.
+2. The user marks one session as `planner` and another as `coder`.
+3. Airbar extracts or lets the user compose a task prompt from the planner session.
+4. Main process sends that prompt to the coder session with `codex exec resume <coderSessionId>`.
+5. Airbar monitors the coder session until it reaches a completion-like state.
+6. The user can send a summary back to the planner with `codex exec resume <plannerSessionId>`.
+
+Important boundaries:
+
+- Do not write directly to `%USERPROFILE%\.codex\sessions\**\*.jsonl`; those files are Codex-owned logs/state, not a stable write API.
+- Avoid resuming the same session concurrently from multiple processes.
+- Prefer explicit user confirmation before sending planner output to a coder session or returning coder output to a planner session.
+- Keep interactive `codex resume` separate from non-interactive relay behavior. For relay work, prefer `codex exec resume` because it accepts a prompt and can run without a TUI.
+
 ## Key Technical Decisions
 
 - Use Electron main/preload with a Vite + React renderer.

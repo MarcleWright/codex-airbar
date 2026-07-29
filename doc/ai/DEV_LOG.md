@@ -2,6 +2,28 @@
 
 ## Recent
 
+### 2026-07-29 Unified Desktop Conversation Boundary
+
+Status: Product and architecture definition updated
+
+Summary:
+
+- Reframed Airbar as a monitor for rollout-backed local Codex execution threads inside the unified ChatGPT desktop application, not as a monitor for every Recent conversation.
+- Established that Codex `done` semantics do not transfer to ordinary ChatGPT chats, where a response can finish while the conversation remains open.
+- Required authoritative conversation kind before future multi-source ingestion and made `unknown` ineligible for completion notifications or automatic recovery.
+- Recorded the durable boundary in `ai/decisions/ADR-0003_conversation-kind-and-lifecycle-boundary.md`.
+
+### 2026-07-05 Session Relay Feasibility Note
+
+Status: Research recorded
+
+Summary:
+
+- Confirmed that Airbar's current read path only inspects Codex-owned local state and should remain read-only for session files.
+- Identified `codex exec resume <SESSION_ID> <PROMPT>` and stdin-based `codex exec resume <SESSION_ID> -` as the safer future path for sending a message into an existing session.
+- Recorded a possible planner/coder relay flow where Airbar reads planner output, asks for user confirmation, sends a task prompt to a coder session, monitors completion, and can send a summary back to the planner.
+- Explicitly ruled out direct writes to `%USERPROFILE%\.codex\sessions\**\*.jsonl` as a reliable control mechanism.
+
 ### 2026-07-02 Taskbar Restore Fix
 
 Status: Done

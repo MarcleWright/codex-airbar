@@ -15,6 +15,8 @@
 - Completed local sessions retain richer event history than the current Airbar UI uses, including `reasoning`, tool-call, `turn_context`, `final_answer`, and `task_complete` signals.
 - User-stopped turns can also expose a terminal `turn_aborted` event, which should be treated as a completion-like signal rather than as a waiting-for-user state.
 - Sessions older than the 18-hour done window should fall back to `idle` on reload unless a fresh process-manager signal proves they are actively running again.
+- Session relay is technically plausible through `codex exec resume <SESSION_ID> <PROMPT>`, but Airbar should not directly mutate Codex session JSONL files.
+- The unified ChatGPT desktop application contains separate Chat/Work and Codex experiences. Airbar currently covers rollout-backed local Codex threads only; ordinary Recent chats have no supported Airbar source or Codex-style completion contract.
 - Documentation files must be UTF-8.
 
 ## Current Important Decisions
@@ -33,6 +35,8 @@
 - A fresh user message after a completed turn is a `working` signal until later assistant activity appears; metadata events such as `session_meta` and `turn_context` do not cancel that pending state.
 - `turn_aborted` should take precedence over pending-user detection, so an intentional user stop is shown as `done` within the same 18-hour window.
 - Future status improvements can use event-sequence signals from completed sessions without adding direct Codex control yet.
+- Future planner/coder connection should be modeled as a user-confirmed relay using `codex exec resume`, not as direct writes to `%USERPROFILE%\.codex\sessions`.
+- Never infer conversation kind from `Projectless`, title text, message text, or inactivity. Unknown kinds cannot emit done notifications or enter automatic recovery.
 - `start-codex-airbar.bat` is the current user-facing launcher.
 
 ## Suggested Read Order
