@@ -1,4 +1,4 @@
-import { CheckCheck, ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, FileText, FolderOpen, GitBranch, Magnet, Minus, Moon, Pin, PinOff, RefreshCw, RotateCcw, Settings, Sun, Terminal, X } from "lucide-react";
+import { CheckCheck, ChevronDown, ChevronRight, ExternalLink, Eye, EyeOff, FileText, FolderOpen, GitBranch, Magnet, Minus, Moon, Paintbrush, Pin, PinOff, RefreshCw, RotateCcw, Settings, Sun, Terminal, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "./theme-provider";
 import { Button } from "./components/ui/button";
@@ -165,6 +165,10 @@ export function App() {
     return calculateStatusSummary(filteredProjects, clearedDoneSessions);
   }, [clearedDoneSessions, filteredProjects]);
 
+  const canClearAllDone = useMemo(() => {
+    return filteredProjects.some((project) => project.sessions.some(isBroomClearableDone));
+  }, [filteredProjects]);
+
   async function poll() {
     try {
       const next = await window.airbar.getSnapshot();
@@ -248,6 +252,18 @@ export function App() {
     if (result.status) setRecoveryStatus(result.status);
   }
 
+  function handleClearAllDone() {
+    setClearedDoneSessions((current) => {
+      const next = { ...current };
+      for (const project of snapshot?.projects || []) {
+        for (const session of project.sessions) {
+          if (isBroomClearableDone(session)) next[session.id] = session.updatedAt;
+        }
+      }
+      return next;
+    });
+  }
+
   return (
     <div
       className={cn("airbar-shell flex h-screen flex-col overflow-hidden text-foreground", `airbar-surface-${settings.themeSurface}`)}
@@ -279,12 +295,14 @@ export function App() {
               theme={theme}
               onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
               onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
-            onSnapTopCenter={handleSnapTopCenter}
-            onRefresh={poll}
-            settingsActive={activeView === "settings"}
-            onToggleSettings={() => setActiveView((current) => (current === "settings" ? "projects" : "settings"))}
-            onOpenLogs={() => window.airbar.openLogs()}
-          />
+              onSnapTopCenter={handleSnapTopCenter}
+              onRefresh={poll}
+              canClearDone={canClearAllDone}
+              onClearAllDone={handleClearAllDone}
+              settingsActive={activeView === "settings"}
+              onToggleSettings={() => setActiveView((current) => (current === "settings" ? "projects" : "settings"))}
+              onOpenLogs={() => window.airbar.openLogs()}
+            />
           )}
         </div>
         <div className="no-drag flex items-center gap-0.5 pr-1.5">
@@ -397,13 +415,32 @@ function calculateStatusSummary(projects: AirbarProject[], clearedDoneSessions: 
   return projects.reduce(
     (summary, project) => {
       for (const session of project.sessions) {
-        if (session.status === "working") summary.working += 1;
-        if (session.status === "done" && clearedDoneSessions[session.id] !== session.updatedAt) summary.done += 1;
+        const kind = sessionSummaryKind(session, clearedDoneSessions[session.id] === session.updatedAt);
+        if (kind) summary[kind] += 1;
       }
       return summary;
     },
-    { working: 0, done: 0 }
+    { failed: 0, working: 0, done: 0 }
   );
+}
+
+function hasCurrentFailure(session: AirbarSession) {
+  const hasCompletionError = Boolean(session.completion?.isCurrent && session.completion.error);
+  const hasRecoveryFailure = Boolean(session.recovery && session.recovery.state !== "running" && session.recovery.state !== "recovered");
+  return hasCompletionError || hasRecoveryFailure;
+}
+
+function isBroomClearableDone(session: AirbarSession) {
+  return session.status === "done" && !hasCurrentFailure(session);
+}
+
+function sessionSummaryKind(session: AirbarSession, isDoneCleared: boolean): "failed" | "working" | "done" | null {
+  if (session.status === "done" && isDoneCleared) return null;
+  if (session.recovery?.state === "running") return "working";
+  if (hasCurrentFailure(session)) return "failed";
+  if (session.status === "working") return "working";
+  if (session.status === "done") return "done";
+  return null;
 }
 
 function TopBarToolset({
@@ -414,6 +451,8 @@ function TopBarToolset({
   onToggleTheme,
   onSnapTopCenter,
   onRefresh,
+  canClearDone,
+  onClearAllDone,
   settingsActive,
   onToggleSettings,
   onOpenLogs
@@ -425,6 +464,8 @@ function TopBarToolset({
   onToggleTheme: () => void;
   onSnapTopCenter: () => void;
   onRefresh: () => void;
+  canClearDone: boolean;
+  onClearAllDone: () => void;
   settingsActive: boolean;
   onToggleSettings: () => void;
   onOpenLogs: () => void;
@@ -461,6 +502,16 @@ function TopBarToolset({
       <Button variant="ghost" size="icon" className="h-6 w-6 rounded-sm" title="Refresh" onClick={onRefresh}>
         <RefreshCw className="h-3.5 w-3.5" />
       </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6 rounded-sm"
+        title="Clear all done sessions"
+        onClick={onClearAllDone}
+        disabled={!canClearDone}
+      >
+        <Paintbrush className="h-3.5 w-3.5" />
+      </Button>
       <Button variant="ghost" size="icon" className={cn("h-6 w-6 rounded-sm", settingsActive && "bg-muted")} title="Settings" onClick={onToggleSettings}>
         <Settings className="h-3.5 w-3.5" />
       </Button>
@@ -475,18 +526,21 @@ function StatusSummaryDots({
   summary,
   onRestore
 }: {
-  summary: { working: number; done: number };
+  summary: { failed: number; working: number; done: number };
   onRestore: () => void;
 }) {
-  const dotCount = summary.working + summary.done;
+  const dotCount = summary.failed + summary.working + summary.done;
   return (
     <button
       type="button"
       className="no-drag flex h-5 w-full min-w-0 items-center justify-end gap-1 overflow-hidden rounded-sm px-1 hover:bg-muted/45 active:bg-muted"
-      title={`${summary.working} working, ${summary.done} done. Click to restore Airbar.`}
+      title={`${summary.failed} failed, ${summary.working} working, ${summary.done} done. Click to restore Airbar.`}
       onClick={onRestore}
     >
       {dotCount === 0 ? <span className="text-[10px] leading-none text-muted-foreground">idle</span> : null}
+      {Array.from({ length: summary.failed }).map((_, index) => (
+        <span key={`failed-${index}`} className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.55)]" />
+      ))}
       {Array.from({ length: summary.working }).map((_, index) => (
         <span key={`working-${index}`} className="h-2.5 w-2.5 shrink-0 rounded-full bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.65)]" />
       ))}
@@ -672,8 +726,15 @@ function ProjectCard({
     if (hideIdle && session.status === "idle") return false;
     return true;
   });
-  const workingCount = project.sessions.filter((session) => session.status === "working").length;
-  const doneCount = project.sessions.filter((session) => session.status === "done" && !isDoneCleared(session)).length;
+  const projectSummary = project.sessions.reduce(
+    (summary, session) => {
+      const kind = sessionSummaryKind(session, isDoneCleared(session));
+      if (kind) summary[kind] += 1;
+      return summary;
+    },
+    { failed: 0, working: 0, done: 0 }
+  );
+  const acknowledgeableDoneCount = project.sessions.filter((session) => session.status === "done" && !isDoneCleared(session)).length;
 
   const isProjectless = project.workspace === "Projectless";
 
@@ -704,18 +765,21 @@ function ProjectCard({
             <span className="block truncate text-[11px] font-medium leading-4">{project.name}</span>
           </div>
           {collapsed ? (
-            <div className="flex shrink-0 items-center gap-1" title={`${workingCount} working, ${doneCount} done`}>
-              {Array.from({ length: workingCount }).map((_, index) => (
+            <div className="flex shrink-0 items-center gap-1" title={`${projectSummary.failed} failed, ${projectSummary.working} working, ${projectSummary.done} done`}>
+              {Array.from({ length: projectSummary.failed }).map((_, index) => (
+                <span key={`failed-${index}`} className="h-2 w-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.55)]" />
+              ))}
+              {Array.from({ length: projectSummary.working }).map((_, index) => (
                 <span key={`working-${index}`} className="h-2 w-2 rounded-full bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.6)]" />
               ))}
-              {Array.from({ length: doneCount }).map((_, index) => (
+              {Array.from({ length: projectSummary.done }).map((_, index) => (
                 <span key={`done-${index}`} className="h-2 w-2 rounded-full bg-sky-400" />
               ))}
             </div>
           ) : null}
         </div>
         <div className="flex items-center gap-1">
-          {doneCount > 0 ? (
+          {acknowledgeableDoneCount > 0 ? (
             <Button
               variant="ghost"
               size="icon"
@@ -783,20 +847,21 @@ function SessionRow({
   }
 
   const canRetryRecovery = recovery && ["retryable_failed", "permanent_failed", "exhausted", "cancelled"].includes(recovery.state);
-  const recoveryTone = recovery?.state === "recovered"
-    ? "bg-emerald-400"
-    : recovery?.state === "running" || recovery?.state === "scheduled"
-      ? "bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.5)]"
-      : recovery
-        ? "bg-rose-400"
-        : statusTone[session.status];
+  const isRecoveryRunning = recovery?.state === "running";
+  const hasCurrentError = Boolean(session.completion?.isCurrent && session.completion.error);
+  const recoveryTone = isRecoveryRunning
+    ? "bg-violet-400 shadow-[0_0_12px_rgba(167,139,250,0.6)]"
+    : hasCurrentError || (recovery && recovery.state !== "recovered")
+      ? "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]"
+      : statusTone[session.status];
+  const indicatorTitle = recovery?.message || session.completion?.error?.message || session.status;
 
   return (
     <div
       data-airbar-session-row
       className="grid grid-cols-[8px_minmax(0,1fr)_auto] items-center gap-1.5 border-b border-border px-2 py-1 last:border-b-0"
     >
-      <span className={cn("h-6 w-1 rounded-full self-center", recoveryTone)} title={recovery?.message} />
+      <span className={cn("h-6 w-1 rounded-full self-center", recoveryTone)} title={indicatorTitle} />
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
           <span className="shrink-0 truncate text-[11px] leading-4" title={session.title}>

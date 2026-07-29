@@ -2,6 +2,18 @@
 
 ## Recent
 
+### 2026-07-29 Global Done Clear And Error Indicator
+
+Status: Done
+
+Summary:
+
+- Added a top-bar brush action that clears ordinary blue `done` sessions across all project cards while preserving red failures.
+- Kept the per-project check action as an explicit acknowledgement that can clear both ordinary completions and red failures in that project.
+- Changed the session indicator to red whenever a current failure remains, including scheduled retry waits and exhausted recovery, and purple only while the CLI is actively running a continuation.
+- Returned successful recovery to the ordinary blue `done` color; recovery provenance does not introduce a separate green lifecycle state.
+- Propagated red failure and purple active-recovery signals into both project-card and whole-Airbar collapsed summaries.
+
 ### 2026-07-29 Model Capacity Recovery
 
 Status: Done
