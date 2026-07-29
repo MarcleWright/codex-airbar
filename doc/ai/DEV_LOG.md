@@ -2,6 +2,17 @@
 
 ## Recent
 
+### 2026-07-29 Session Status False-Positive Fix
+
+Status: Done
+
+Summary:
+
+- Replaced the fixed 64 KB session tail read with a backward 64 KB chunk scan that stops after 40 complete lines and is capped at 4 MB.
+- Kept current `task_complete` and `final_answer` signals visible when large passive `session_meta` records follow them.
+- Stopped treating process-manager command history as active for the full 18-hour done window; only a confirmed live PID can now force `working`.
+- Added regressions for large trailing metadata, stale null-PID records, and long-running confirmed processes.
+
 ### 2026-07-29 Unified Desktop Conversation Boundary
 
 Status: Product and architecture definition updated

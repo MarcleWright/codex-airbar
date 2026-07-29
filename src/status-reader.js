@@ -5,6 +5,9 @@ const os = require("node:os");
 const CODEX_HOME = path.join(os.homedir(), ".codex");
 const ACTIVE_WINDOW_MS = 90 * 1000;
 const DONE_WINDOW_MS = 18 * 60 * 60 * 1000;
+const TAIL_CHUNK_BYTES = 64 * 1024;
+const MAX_TAIL_SCAN_BYTES = 4 * 1024 * 1024;
+const TARGET_TAIL_LINES = 40;
 const MAX_SESSION_FILES = 120;
 const AIRBAR_MARKER_PREFIX = "[airbar]";
 
@@ -115,15 +118,31 @@ function parseThreadIdFromFile(filePath) {
   return match ? match[1] : base;
 }
 
-function readTailLines(filePath, maxBytes = 65536) {
+function readTailLines(filePath, maxBytes = MAX_TAIL_SCAN_BYTES, targetLines = TARGET_TAIL_LINES) {
   const stat = safeStat(filePath);
   if (!stat) return [];
   const fd = fs.openSync(filePath, "r");
   try {
-    const length = Math.min(maxBytes, stat.size);
-    const buffer = Buffer.alloc(length);
-    fs.readSync(fd, buffer, 0, length, Math.max(0, stat.size - length));
-    return buffer.toString("utf8").split(/\r?\n/).filter(Boolean);
+    const chunks = [];
+    let position = stat.size;
+    let scannedBytes = 0;
+    let newlineCount = 0;
+
+    while (position > 0 && scannedBytes < maxBytes && newlineCount <= targetLines) {
+      const length = Math.min(TAIL_CHUNK_BYTES, position, maxBytes - scannedBytes);
+      position -= length;
+      const chunk = Buffer.alloc(length);
+      fs.readSync(fd, chunk, 0, length, position);
+      chunks.unshift(chunk);
+      scannedBytes += length;
+      for (const byte of chunk) {
+        if (byte === 0x0a) newlineCount += 1;
+      }
+    }
+
+    const lines = Buffer.concat(chunks).toString("utf8").split(/\r?\n/);
+    if (position > 0) lines.shift();
+    return lines.filter(Boolean).slice(-targetLines);
   } finally {
     fs.closeSync(fd);
   }
@@ -199,7 +218,7 @@ function summarizeCompletion(events) {
 
 function summarizeLastEvents(filePath) {
   const headEvents = parseEventLines(readHeadLines(filePath), 80);
-  const events = parseEventLines(readTailLines(filePath).slice(-40), 40);
+  const events = parseEventLines(readTailLines(filePath), TARGET_TAIL_LINES);
 
   const last = events.at(-1) || null;
   const tailEvents = events.slice(-8);
@@ -216,6 +235,7 @@ function summarizeLastEvents(filePath) {
   });
 
   const fullLastMessage = extractFullMessageText(lastAgentMessage);
+  const completion = summarizeCompletion(events);
 
   return {
     lastType: last?.type || last?.payload?.type || "unknown",
@@ -228,8 +248,8 @@ function summarizeLastEvents(filePath) {
     hasFunctionOutput,
     hasPendingUserMessage: hasPendingUserMessage(events),
     hasTurnAborted: tailEvents.some((event) => event?.payload?.type === "turn_aborted"),
-    hasTaskComplete: tailEvents.some((event) => event?.payload?.type === "task_complete"),
-    hasFinalAnswer: tailEvents.some((event) => event?.payload?.phase === "final_answer"),
+    hasTaskComplete: Boolean(completion?.isCurrent),
+    hasFinalAnswer: events.some((event) => event?.payload?.phase === "final_answer"),
     hasCommentary: tailEvents.some((event) => event?.payload?.phase === "commentary"),
     hasRecentReasoning: tailEvents.some((event) => event?.payload?.type === "reasoning"),
     hasOpenToolCall: tailEvents.some((event) => {
@@ -240,7 +260,7 @@ function summarizeLastEvents(filePath) {
       const type = event?.payload?.type;
       return type === "function_call_output" || type === "custom_tool_call_output";
     }),
-    completion: summarizeCompletion(events)
+    completion
   };
 }
 
@@ -428,17 +448,14 @@ function extractCommandWorkspace(processInfo) {
   return "";
 }
 
-function readProcessManager() {
-  const processPath = path.join(CODEX_HOME, "process_manager", "chat_processes.json");
-  const rows = safeReadJson(processPath, []);
-  const now = Date.now();
+function summarizeProcessRows(rows, now = Date.now(), processAlive = isProcessAlive) {
   const byThread = new Map();
   for (const row of Array.isArray(rows) ? rows : []) {
     if (!row.conversationId) continue;
     const ageMs = now - Number(row.updatedAtMs || row.startedAtMs || 0);
-    const active = ageMs >= 0 && ageMs < DONE_WINDOW_MS;
     const pid = Number(row.osPid || 0);
-    const live = pid > 0 && isProcessAlive(pid);
+    const live = pid > 0 && processAlive(pid);
+    const active = live && ageMs >= 0;
     const existing = byThread.get(row.conversationId) || { recentCommands: [], hasRecentProcess: false, hasLiveProcess: false };
     existing.recentCommands.push({
       command: row.command || "",
@@ -451,6 +468,11 @@ function readProcessManager() {
     byThread.set(row.conversationId, existing);
   }
   return byThread;
+}
+
+function readProcessManager() {
+  const processPath = path.join(CODEX_HOME, "process_manager", "chat_processes.json");
+  return summarizeProcessRows(safeReadJson(processPath, []));
 }
 
 function isProcessAlive(pid) {
@@ -492,8 +514,7 @@ function workspaceForThread(threadId, globalState, processInfo, eventSummary) {
   return "Projectless";
 }
 
-function statusForSession(file, eventSummary, processInfo) {
-  const now = Date.now();
+function statusForSession(file, eventSummary, processInfo, now = Date.now()) {
   const ageMs = now - file.mtimeMs;
   if (eventSummary?.hasTurnAborted) {
     return ageMs < DONE_WINDOW_MS ? "done" : "idle";
@@ -597,4 +618,10 @@ function readCodexSnapshot() {
   };
 }
 
-module.exports = { readCodexSnapshot, summarizeCompletion };
+module.exports = {
+  readCodexSnapshot,
+  statusForSession,
+  summarizeCompletion,
+  summarizeLastEvents,
+  summarizeProcessRows
+};
